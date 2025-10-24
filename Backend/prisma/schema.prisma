@@ -1,0 +1,111 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Category {
+  id           Int      @id @default(autoincrement())
+  name         String
+  description  String?
+  date_created DateTime @default(now())
+  date_updated DateTime @updatedAt
+  blog         Blog[]
+}
+
+model Blog {
+  id           Int            @id @default(autoincrement())
+  categoryId   Int
+  title        String
+  authorId     Int
+  content      String?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @default(now()) @updatedAt
+  img          String?
+  latest       Boolean        @default(true)
+  trending     Boolean        @default(false)
+  author       User           @relation(fields: [authorId], references: [id])
+  Category     Category       @relation(fields: [categoryId], references: [id])
+  likes        BlogLike[]
+  comments     Comment[]
+  Favorite     Favorite[]
+  Notification Notification[] @relation("BlogNotifications")
+}
+
+model User {
+  id                    Int            @id @default(autoincrement())
+  username              String         @unique
+  email                 String         @unique
+  password              String
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @default(now()) @updatedAt
+  role                  String         @default("USER")
+  bio                   String?
+  profilePic            String?
+  isBanned              Boolean        @default(false)
+  isSuspended           Boolean        @default(false)
+  suspendedUntil        DateTime?
+  strikeCount           Int            @default(0)
+  subscriptionExpiresAt DateTime?
+  subscriptionPlan      String?
+  Blog                  Blog[]
+  BlogLike              BlogLike[]
+  Comment               Comment[]
+  Favorite              Favorite[]
+  notifications         Notification[] @relation("UserNotifications")
+}
+
+model Favorite {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  blogId    Int
+  createdAt DateTime @default(now())
+  blog      Blog     @relation(fields: [blogId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, blogId])
+}
+
+model Comment {
+  id           Int            @id @default(autoincrement())
+  content      String
+  authorId     Int
+  blogId       Int
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @default(now())
+  parentId     Int?
+  author       User           @relation(fields: [authorId], references: [id])
+  blog         Blog           @relation(fields: [blogId], references: [id], onDelete: Cascade)
+  parent       Comment?       @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies      Comment[]      @relation("CommentReplies")
+  Notification Notification[] @relation("CommentNotifications")
+}
+
+model BlogLike {
+  id        Int      @id @default(autoincrement())
+  blogId    Int
+  userId    Int
+  liked     Boolean  @default(false)
+  createdAt DateTime @default(now())
+  blog      Blog     @relation(fields: [blogId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@unique([blogId, userId])
+}
+
+model Notification {
+  id          Int      @id @default(autoincrement())
+  type        String
+  message     String
+  isRead      Boolean  @default(false)
+  recipientId Int
+  blogId      Int?
+  commentId   Int?
+  createdAt   DateTime @default(now())
+  blog        Blog?    @relation("BlogNotifications", fields: [blogId], references: [id])
+  comment     Comment? @relation("CommentNotifications", fields: [commentId], references: [id])
+  recipient   User     @relation("UserNotifications", fields: [recipientId], references: [id])
+}
