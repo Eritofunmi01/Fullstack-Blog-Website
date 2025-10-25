@@ -415,7 +415,7 @@ export const forgotPassword = async (req, res) => {
       to: user.email,
       subject: "Reset Your Password",
       html: `
-        <p>Hello ${user.username},</p>
+        <p>Hello Blogger</p>
         <p>You requested to reset your password.</p>
         <p>Click the link below to reset it. This link will expire in 15 minutes.</p>
         <a href="${resetLink}" style="color:#2563eb; text-decoration:none;">Reset Password</a>
