@@ -27,8 +27,8 @@ model Blog {
   img          String?
   latest       Boolean        @default(true)
   trending     Boolean        @default(false)
-  author       User           @relation(fields: [authorId], references: [id])
-  Category     Category       @relation(fields: [categoryId], references: [id])
+  author       User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  Category     Category       @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   likes        BlogLike[]
   comments     Comment[]
   Favorite     Favorite[]
@@ -77,7 +77,7 @@ model Comment {
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @default(now())
   parentId     Int?
-  author       User           @relation(fields: [authorId], references: [id])
+  author       User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
   blog         Blog           @relation(fields: [blogId], references: [id], onDelete: Cascade)
   parent       Comment?       @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
   replies      Comment[]      @relation("CommentReplies")
@@ -91,7 +91,7 @@ model BlogLike {
   liked     Boolean  @default(false)
   createdAt DateTime @default(now())
   blog      Blog     @relation(fields: [blogId], references: [id], onDelete: Cascade)
-  user      User     @relation(fields: [userId], references: [id])
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([blogId, userId])
 }
@@ -105,7 +105,7 @@ model Notification {
   blogId      Int?
   commentId   Int?
   createdAt   DateTime @default(now())
-  blog        Blog?    @relation("BlogNotifications", fields: [blogId], references: [id])
-  comment     Comment? @relation("CommentNotifications", fields: [commentId], references: [id])
-  recipient   User     @relation("UserNotifications", fields: [recipientId], references: [id])
+  blog        Blog?    @relation("BlogNotifications", fields: [blogId], references: [id], onDelete: Cascade)
+  comment     Comment? @relation("CommentNotifications", fields: [commentId], references: [id], onDelete: Cascade)
+  recipient   User     @relation("UserNotifications", fields: [recipientId], references: [id], onDelete: Cascade)
 }
