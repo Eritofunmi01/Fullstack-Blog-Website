@@ -128,7 +128,7 @@ function Login() {
             type="submit"
             disabled={loading}
             className='
-              bg-green-600 ml-25 mb-10 mt-4 w-[35%] cursor-pointer p-1 rounded-full
+              bg-green-600 ml-15 mb-10 mt-4 w-[35%] cursor-pointer p-1 rounded-full
               hover:text-green-600 hover:bg-white hover:outline-green-600 hover:outline-2 
               text-white text-2xl
               sm:w-[30%] sm:text-lg md:mb-10
@@ -140,7 +140,7 @@ function Login() {
           <button
             onClick={() => navigate(-1)}
             type="button"
-            className="bg-blue-600 p-2 rounded-full w-full  hover:outline-blue-600 hover:outline-2  md:w-50 md:ml-5 justify-center text-md hover:bg-white hover:text-blue-600 hover:font-bold text-white"
+            className="bg-blue-600 p-2 rounded-full w-20 ml-2  hover:outline-blue-600 hover:outline-2  md:w-50 md:ml-5 justify-center text-md hover:bg-white hover:text-blue-600 hover:font-bold text-white"
           >
             Back
           </button>
