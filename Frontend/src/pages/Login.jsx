@@ -137,6 +137,14 @@ function Login() {
             {loading ? "Logging in..." : "Login"}
           </button>
 
+          <button
+            onClick={() => navigate(-1)}
+            type="button"
+            className="bg-blue-600 p-2 rounded-full w-full  hover:outline-blue-600 hover:outline-2  md:w-50 md:ml-5 justify-center text-md hover:bg-white hover:text-blue-600 hover:font-bold text-white"
+          >
+            Back
+          </button>
+
           <div className="mt-2 text-center gap-3 text-sm md:text-md">
             <Link to="/register" className="text-green-600 hover:underline">
               Don't have an account? Sign up
