@@ -23,7 +23,8 @@ const authenticate = async (req, res, next) => {
     req.user = { id: decoded.id, role: decoded.role };
 
     const user = await prisma.user.findUnique({ where: { id: decoded.id } });
-    if (!user) return res.status(401).json({ message: "Unauthorized. User not found." });
+    if (!user)
+      return res.status(401).json({ message: "Unauthorized. User not found." });
 
     // -------------------- BAN CHECK --------------------
     if (user.isBanned) {
@@ -60,28 +61,37 @@ const authenticate = async (req, res, next) => {
   }
 };
 
-// -------------------- ADMIN CHECK --------------------
+// -------------------- CREATOR CHECK --------------------
+const isCreator = (req, res, next) => {
+  if (!req.user) return res.status(401).json({ message: "Unauthorized" });
+  if (req.user.role.toUpperCase() !== "CREATOR") {
+    return res.status(403).json({ message: "Access denied. Creator only." });
+  }
+  next();
+};
+
+// -------------------- ADMIN CHECK (CREATOR INCLUDED) --------------------
 const isAdmin = (req, res, next) => {
   if (!req.user) return res.status(401).json({ message: "Unauthorized" });
-  if (req.user.role.toUpperCase() !== "ADMIN") {
+  const role = req.user.role?.toUpperCase();
+  if (role !== "ADMIN" && role !== "CREATOR") {
     return res.status(403).json({ message: "Access denied. Admins only." });
   }
   next();
 };
 
-// -------------------- AUTHOR (WITH SUBSCRIPTION) OR ADMIN --------------------
+// -------------------- AUTHOR (WITH SUBSCRIPTION) OR ADMIN/CREATOR --------------------
 const authorizeAuthor = async (req, res, next) => {
   try {
     const user = await prisma.user.findUnique({ where: { id: req.user.id } });
     if (!user) return res.status(401).json({ message: "Unauthorized" });
 
-    // admins always allowed
-    if (user.role === "ADMIN") return next();
+    const role = user.role?.toUpperCase();
+    // Creator or Admin always allowed
+    if (role === "CREATOR" || role === "ADMIN") return next();
 
-    if (user.role === "AUTHOR") {
-      // check subscription expiry
+    if (role === "AUTHOR") {
       if (!user.subscriptionExpiresAt || new Date() > user.subscriptionExpiresAt) {
-        // downgrade automatically
         await prisma.user.update({
           where: { id: user.id },
           data: {
@@ -90,12 +100,13 @@ const authorizeAuthor = async (req, res, next) => {
             subscriptionExpiresAt: null,
           },
         });
-        return res.status(403).json({ message: "Subscription expired. Please renew." });
+        return res
+          .status(403)
+          .json({ message: "Subscription expired. Please renew." });
       }
       return next(); // valid author
     }
 
-    // not author
     return res.status(403).json({
       message: "Access denied. Please subscribe to become an Author.",
     });
@@ -105,7 +116,7 @@ const authorizeAuthor = async (req, res, next) => {
   }
 };
 
-// -------------------- BLOG AUTHOR OR ADMIN --------------------
+// -------------------- BLOG AUTHOR OR ADMIN/CREATOR --------------------
 const isAuthorOrAdmin = async (req, res, next) => {
   try {
     if (!req.user) return res.status(401).json({ message: "Unauthorized" });
@@ -114,8 +125,8 @@ const isAuthorOrAdmin = async (req, res, next) => {
     const blog = await prisma.blog.findUnique({ where: { id: parseInt(id) } });
     if (!blog) return res.status(404).json({ message: "Blog not found" });
 
-    const userRole = req.user.role?.toUpperCase();
-    if (parseInt(req.user.id) !== blog.authorId && userRole !== "ADMIN") {
+    const role = req.user.role?.toUpperCase();
+    if (parseInt(req.user.id) !== blog.authorId && role !== "ADMIN" && role !== "CREATOR") {
       return res.status(403).json({ message: "Access denied" });
     }
 
@@ -126,7 +137,7 @@ const isAuthorOrAdmin = async (req, res, next) => {
   }
 };
 
-// -------------------- COMMENT AUTHOR OR ADMIN --------------------
+// -------------------- COMMENT AUTHOR OR ADMIN/CREATOR --------------------
 const isCommentAuthorOrAdmin = async (req, res, next) => {
   try {
     if (!req.user) return res.status(401).json({ message: "Unauthorized" });
@@ -137,8 +148,8 @@ const isCommentAuthorOrAdmin = async (req, res, next) => {
     });
     if (!comment) return res.status(404).json({ message: "Comment not found" });
 
-    const userRole = req.user.role?.toUpperCase();
-    if (parseInt(req.user.id) !== comment.authorId && userRole !== "ADMIN") {
+    const role = req.user.role?.toUpperCase();
+    if (parseInt(req.user.id) !== comment.authorId && role !== "ADMIN" && role !== "CREATOR") {
       return res.status(403).json({ message: "Access denied" });
     }
 
@@ -151,6 +162,7 @@ const isCommentAuthorOrAdmin = async (req, res, next) => {
 
 module.exports = {
   authenticate,
+  isCreator,
   isAdmin,
   authorizeAuthor,
   isAuthorOrAdmin,
