@@ -1,5 +1,10 @@
 import React, { useState, useEffect } from "react";
-import { BrowserRouter as Router, Routes, Route, useNavigate } from "react-router";
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  useNavigate,
+} from "react-router";
 import Header from "./components/Header";
 import Carousel from "./components/Carousel";
 import BlogItems from "./components/BlogItems";
@@ -77,10 +82,9 @@ function App() {
 
     const fetchNotifications = async () => {
       try {
-        const res = await axios.get(
-          `https://blug-be-api.onrender.com/unread`,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
+        const res = await axios.get(`https://blug-be-api.onrender.com/unread`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
 
         if (res.data.notifications?.length > 0) {
           const latest = res.data.notifications[0];
@@ -227,11 +231,25 @@ function App() {
 
         {/* 🔔 Promotion/Demotion Popup */}
         {notification && (
-          <div className="fixed bottom-6 right-6 bg-gray-900 text-white px-6 py-4 rounded-lg shadow-lg border border-gray-700 animate-fade-in z-50 max-w-sm">
-            <p className="text-sm leading-relaxed">{notification.message}</p>
+          <div className="fixed bottom-4 right-4 bg-gray-800 text-white p-4 rounded-lg shadow-lg w-80">
+            <p className="text-lg font-semibold mb-2">{notification.type}</p>
+            <p className="text-sm mb-4">{notification.message}</p>
+
             <button
-              className="mt-3 text-sm text-green-400 hover:text-green-300 underline"
-              onClick={() => setNotification(null)}
+              onClick={async () => {
+                const token = localStorage.getItem("token"); // ✅ fix added here
+                try {
+                  await axios.put(
+                    `https://blug-be-api.onrender.com/read/:{$id}`,
+                    {},
+                    { headers: { Authorization: `Bearer ${token}` } }
+                  );
+                  setNotification(null);
+                } catch (err) {
+                  console.error("Failed to mark notification as read:", err);
+                }
+              }}
+              className="bg-green-600 px-4 py-2 rounded-lg hover:bg-green-700"
             >
               Close
             </button>
