@@ -15,7 +15,7 @@ router.post("/login", authController.login);
 // ================== USERS ================== //
 router.get("/users", authController.getAllUsers);
 router.delete("/users/:id", authenticate, authController.deleteUser);
-router.put("/make-admin/:id", isCreator, authenticate, authController.makeAdmin);
+router.put("/make-admin/:id", isCreator, authController.makeAdmin);
 router.post("/fix-admin-roles", isCreator, authController.fixAdminRoles);
 router.post("/forgotPassword", authController.forgotPassword);
 router.post("/reset-password", authController.resetPassword);
