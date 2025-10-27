@@ -8,7 +8,7 @@ const Comment = ({ comment, addReply, removeComment, currentUserId, role }) => {
 
   const canDelete =
     comment.author &&
-    (currentUserId === comment.author.id || role?.toUpperCase() === "ADMIN");
+    (currentUserId === comment.author.id || role?.toUpperCase() === "ADMIN" || "CREATOR");
 
   const handleDelete = async () => {
     try {

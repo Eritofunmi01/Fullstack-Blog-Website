@@ -94,7 +94,7 @@ export default function Header() {
         return;
       }
 
-      if (user.role === "AUTHOR" || user.role === "ADMIN") {
+      if (user.role === "AUTHOR" || user.role === "ADMIN" || user.role === "CREATOR") {
         navigate("/write");
       } else {
         navigate("/subscribe");

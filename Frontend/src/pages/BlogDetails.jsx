@@ -171,7 +171,7 @@ function BlogDetails() {
 
   const canDelete =
     currentUser &&
-    (currentUser.role?.toLowerCase() === "admin" ||
+    (currentUser.role?.toLowerCase() === "admin" || "creator" ||
       (currentUser.id?.toString() || "") ===
         (blog?.author?.id?.toString() || ""));
 

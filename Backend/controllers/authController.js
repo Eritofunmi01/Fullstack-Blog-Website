@@ -271,6 +271,7 @@ export const getPublicUserProfile = async (req, res) => {
         id: true,
         username: true,
         bio: true,
+        role: true,
         profilePic: true,
         Blog: {
           select: {

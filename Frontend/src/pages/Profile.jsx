@@ -192,7 +192,9 @@ export default function ProfilePage() {
       ? { label: "Administrator", style: "bg-yellow-500 text-black" }
       : user.role === "AUTHOR"
       ? { label: "Author", style: "bg-green-600 text-white" }
-      : { label: "Reader", style: "bg-gray-700 text-white" };
+      : user.role === "CREATOR"
+      ? {label: "Creator", style: "bg-yellow-800 text-yellow-200"}
+      : { label: "Reader", style: "bg-gray-700 text-white"};
 
   const renderBadgeMessage = () => {
     if (user.role === "USER" || user.role === "READER") {
