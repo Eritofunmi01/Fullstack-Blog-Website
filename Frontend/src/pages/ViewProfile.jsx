@@ -100,7 +100,7 @@ export default function ViewProfile() {
     try {
       setActionLoading(true);
       const res = await axios.put(
-        `${API_BASE}/api/make-admin/${id}`,
+        `${API_BASE}/make-admin/${id}`,
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -120,7 +120,7 @@ export default function ViewProfile() {
     try {
       setActionLoading(true);
       const res = await axios.post(
-        `${API_BASE}/api/fix-admin-roles`,
+        `${API_BASE}/fix-admin-roles`,
         { id },
         { headers: { Authorization: `Bearer ${token}` } }
       );
