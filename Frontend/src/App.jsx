@@ -240,7 +240,7 @@ function App() {
                 const token = localStorage.getItem("token"); // ✅ fix added here
                 try {
                   await axios.put(
-                    `https://blug-be-api.onrender.com/read/:{$id}`,
+                    `https://blug-be-api.onrender.com/read/${notification.id}`,
                     {},
                     { headers: { Authorization: `Bearer ${token}` } }
                   );
