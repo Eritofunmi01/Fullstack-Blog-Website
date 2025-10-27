@@ -182,12 +182,25 @@ export const deleteUser = async (req, res) => {
 export const makeAdmin = async (req, res) => {
   try {
     const { id } = req.params;
+
+    // Update user role to ADMIN
     const user = await prisma.user.update({
       where: { id: parseInt(id) },
       data: { role: "ADMIN" },
       select: { id: true, username: true, email: true, role: true },
     });
-    res.json({ message: "User promoted to admin", user });
+
+    // ✅ Create a notification for the promoted user
+    await prisma.notification.create({
+      data: {
+        type: "PROMOTION",
+        message:
+          "🎉 Congratulations! Your deeds have been noticed by us and we are happy to make you know that your account has successfully been promoted to become one of our admins. Privileges: you can delete any improper comments and blogs, suspend accounts with policy violations, and help us maintain order.",
+        recipientId: user.id,
+      },
+    });
+
+    res.json({ message: "User promoted to admin and notified", user });
   } catch (error) {
     console.error("Make Admin Error:", error);
     res.status(500).json({ message: "Internal server error" });
@@ -496,7 +509,6 @@ export const fixAdminRoles = async (req, res) => {
       });
     }
 
-    // If user is already USER, no need to update
     if (user.role === "USER") {
       return res.status(200).json({
         success: true,
@@ -504,15 +516,25 @@ export const fixAdminRoles = async (req, res) => {
       });
     }
 
-    // Update the role to USER
+    // ✅ Update role to USER
     const updatedUser = await prisma.user.update({
       where: { id: Number(id) },
       data: { role: "USER" },
     });
 
+    // ✅ Create a notification for demotion
+    await prisma.notification.create({
+      data: {
+        type: "DEMOTION",
+        message:
+          "⚠️ Notice! We have noticed misuse of admin privileges and have come to the conclusion that your account will be demoted back to a user until further notice.",
+        recipientId: updatedUser.id,
+      },
+    });
+
     return res.status(200).json({
       success: true,
-      message: `✅ User '${updatedUser.username}' (ID: ${updatedUser.id}) role changed to USER.`,
+      message: `✅ User '${updatedUser.username}' (ID: ${updatedUser.id}) has been demoted to USER and notified.`,
       user: {
         id: updatedUser.id,
         username: updatedUser.username,
@@ -528,6 +550,7 @@ export const fixAdminRoles = async (req, res) => {
     });
   }
 };
+
 
 // -------------------- RESET PASSWORD (after forgot) --------------------
 export const resetPassword = async (req, res) => {

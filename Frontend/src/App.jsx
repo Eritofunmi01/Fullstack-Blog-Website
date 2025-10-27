@@ -26,7 +26,6 @@ import Subscribe from "./pages/Subscribe";
 import VerifyPayment from "./pages/VerifyPayment";
 import Draft from "./pages/Draft";
 import useInactivity from "./hooks/useInactivity";
-
 import axios from "axios";
 
 // 🔹 Setup global axios interceptor
@@ -52,6 +51,7 @@ window.fetch = async (...args) => {
 
 function App() {
   const [expired, setExpired] = useState(false);
+  const [notification, setNotification] = useState(null); // 🔔 for promotion/demotion popup
   const navigate = useNavigate();
 
   useInactivity(10 * 60 * 1000, () => {
@@ -68,6 +68,33 @@ function App() {
 
     window.addEventListener("token-expired", handleExpired);
     return () => window.removeEventListener("token-expired", handleExpired);
+  }, []);
+
+  // 🔹 Fetch unread notifications once after login
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token) return; // not logged in
+
+    const fetchNotifications = async () => {
+      try {
+        const res = await axios.get(
+          `${import.meta.env.VITE_API_BASE_URL}/notifications/unread`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+
+        if (res.data.notifications?.length > 0) {
+          const latest = res.data.notifications[0];
+          setNotification({
+            message: latest.message,
+            type: latest.type || "info",
+          });
+        }
+      } catch (err) {
+        console.error("Error fetching unread notifications:", err);
+      }
+    };
+
+    fetchNotifications();
   }, []);
 
   return (
@@ -147,11 +174,11 @@ function App() {
             }
           />
 
-            <Route path="/reset-password" element={<ResetPassword />} />
-
+          <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/login" element={<Login />} />
           <Route path="/verify-payment" element={<VerifyPayment />} />
           <Route path="/register" element={<Register />} />
+
           <Route
             path="/blogs"
             element={
@@ -163,13 +190,11 @@ function App() {
             }
           />
 
-                    <Route
+          <Route
             path="/forget"
             element={
               <>
-              
                 <Forget />
-                
               </>
             }
           />
@@ -200,18 +225,26 @@ function App() {
           <Route path="/edit-blog/:id" element={<EditBlog />} />
         </Routes>
 
-        {/* 🔔 Popup (inactivity or 401) */}
+        {/* 🔔 Promotion/Demotion Popup */}
+        {notification && (
+          <div className="fixed bottom-6 right-6 bg-gray-900 text-white px-6 py-4 rounded-lg shadow-lg border border-gray-700 animate-fade-in z-50 max-w-sm">
+            <p className="text-sm leading-relaxed">{notification.message}</p>
+            <button
+              className="mt-3 text-sm text-green-400 hover:text-green-300 underline"
+              onClick={() => setNotification(null)}
+            >
+              Close
+            </button>
+          </div>
+        )}
+
+        {/* 🔔 Session Expired Popup */}
         {expired && (
           <div className="fixed inset-0 flex items-center justify-center bg-black/50">
             <div className="bg-gray-950 text-white p-6 rounded-xl shadow-lg text-center">
               <h2 className="text-xl font-semibold mb-4">Session Expired</h2>
               <p className="mb-4">
-                {/*
-                  Different message depending on cause
-                */}
-                {
-                  "You have been logged out due to inactivity."
-                  }
+                You have been logged out due to inactivity.
               </p>
               <button
                 onClick={() => {

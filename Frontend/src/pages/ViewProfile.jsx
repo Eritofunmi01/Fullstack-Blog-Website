@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useParams, Link, useNavigate } from "react-router";
+import { useParams, Link } from "react-router";
 import axios from "axios";
 import { jwtDecode } from "jwt-decode";
 import { FaUser, FaBookOpen, FaTrashAlt, FaBan } from "react-icons/fa";
@@ -8,11 +8,12 @@ import Error from "../components/shared/Error";
 
 export default function ViewProfile() {
   const { id } = useParams();
-  const navigate = useNavigate();
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [currentUser, setCurrentUser] = useState(null);
+  const [popup, setPopup] = useState(null); // 👈 confirmation popup state
+  const [actionLoading, setActionLoading] = useState(false); // 👈 disable buttons when working
 
   const API_BASE = "https://blug-be-api.onrender.com";
   const token = localStorage.getItem("token");
@@ -70,12 +71,9 @@ export default function ViewProfile() {
   // ✅ Extract profile data
   const { username, bio, profilePic, blogs = [], role } = profile;
 
-  // ✅ Check if logged-in user is Admin or Creator
   const isAdmin =
     currentUser?.role?.toLowerCase() === "admin" ||
     currentUser?.role?.toLowerCase() === "creator";
-
-  const isCreator = currentUser?.role?.toLowerCase() === "creator";
 
   // ✅ Delete blog
   const handleDeleteBlog = async (blogId) => {
@@ -97,9 +95,49 @@ export default function ViewProfile() {
     }
   };
 
+  // ✅ Promote to Admin
+  const handlePromote = async () => {
+    try {
+      setActionLoading(true);
+      const res = await axios.put(
+        `${API_BASE}/api/make-admin/${id}`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      alert(res.data.message || "User promoted to Admin.");
+      window.location.reload();
+    } catch (error) {
+      console.error("Promotion failed:", error);
+      alert("Failed to promote user.");
+    } finally {
+      setActionLoading(false);
+      setPopup(null);
+    }
+  };
+
+  // ✅ Demote to User
+  const handleDemote = async () => {
+    try {
+      setActionLoading(true);
+      const res = await axios.post(
+        `${API_BASE}/api/fix-admin-roles`,
+        { id },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      alert(res.data.message || "User demoted to User.");
+      window.location.reload();
+    } catch (error) {
+      console.error("Demotion failed:", error);
+      alert("Failed to demote user.");
+    } finally {
+      setActionLoading(false);
+      setPopup(null);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-950 flex justify-center p-6 font-serif">
-      <div className="w-full max-w-4xl space-y-6">
+      <div className="w-full max-w-4xl space-y-6 relative">
         {/* 🔹 Profile Header */}
         <div className="bg-gray-900 rounded-2xl shadow-md p-6 text-center text-white flex flex-col items-center relative">
           <img
@@ -113,38 +151,40 @@ export default function ViewProfile() {
           <h2 className="text-2xl font-bold mt-4">{username}</h2>
           <p className="text-gray-300 max-w-lg">{bio || "No bio yet..."}</p>
 
-          {/* 🔹 Show current role badge */}
-          <span
-            className={`mt-3 px-3 py-1 text-sm font-semibold rounded-full ${
-              role?.toLowerCase() === "admin"
-                ? "bg-red-700 text-white"
-                : "bg-gray-700 text-gray-200"
-            }`}
-          >
-          </span>
-
           {/* 🔹 ADMIN / CREATOR ACTIONS */}
           {isAdmin && (
             <div className="absolute top-4 right-4 flex flex-col gap-3">
               <button
-                onClick={() => navigate(`/suspend/${id}`)}
+                onClick={() => (window.location.href = `/suspend/${id}`)}
                 className="flex items-center gap-2 bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg text-sm transition"
               >
                 <FaBan /> Suspend User
               </button>
 
-              {/* 🔹 Promote or Demote */}
+              {/* 🔹 Promote or Demote with Confirmation */}
               {role?.toLowerCase() === "admin" ? (
                 <button
-                  onClick={() => navigate(`/demote/${id}`)}
+                  onClick={() =>
+                    setPopup({
+                      action: "demote",
+                      message: `Are you sure you want to demote ${username} to User?`,
+                    })
+                  }
                   className="flex items-center gap-2 bg-red-700 hover:bg-red-800 text-white px-4 py-2 rounded-lg text-sm transition"
+                  disabled={actionLoading}
                 >
                   Demote to User
                 </button>
               ) : (
                 <button
-                  onClick={() => navigate(`/promote/${id}`)}
+                  onClick={() =>
+                    setPopup({
+                      action: "promote",
+                      message: `Are you sure you want to promote ${username} to Admin?`,
+                    })
+                  }
                   className="flex items-center gap-2 bg-green-700 hover:bg-green-800 text-white px-4 py-2 rounded-lg text-sm transition"
+                  disabled={actionLoading}
                 >
                   Promote to Admin
                 </button>
@@ -218,6 +258,33 @@ export default function ViewProfile() {
           </h3>
           <p>{bio || "This user hasn’t written anything about themselves yet."}</p>
         </div>
+
+        {/* 🔹 Confirmation Popup */}
+        {popup && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-gray-800 p-6 rounded-lg shadow-lg text-white max-w-sm text-center">
+              <p className="mb-6">{popup.message}</p>
+              <div className="flex justify-center gap-4">
+                <button
+                  onClick={() =>
+                    popup.action === "promote" ? handlePromote() : handleDemote()
+                  }
+                  className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg"
+                  disabled={actionLoading}
+                >
+                  Yes
+                </button>
+                <button
+                  onClick={() => setPopup(null)}
+                  className="bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded-lg"
+                  disabled={actionLoading}
+                >
+                  No
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
