@@ -78,7 +78,7 @@ function App() {
     const fetchNotifications = async () => {
       try {
         const res = await axios.get(
-          `${import.meta.env.VITE_API_BASE_URL}/notifications/unread`,
+          `${import.meta.env.VITE_API_BASE_URL}unread`,
           { headers: { Authorization: `Bearer ${token}` } }
         );
 
