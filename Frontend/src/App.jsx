@@ -56,7 +56,7 @@ window.fetch = async (...args) => {
 
 function App() {
   const [expired, setExpired] = useState(false);
-  const [notification, setNotification] = useState(null); // 🔔 for promotion/demotion popup
+  const [notification, setNotification] = useState(null);
   const navigate = useNavigate();
 
   useInactivity(10 * 60 * 1000, () => {
@@ -78,20 +78,31 @@ function App() {
   // 🔹 Fetch unread notifications once after login
   useEffect(() => {
     const token = localStorage.getItem("token");
-    if (!token) return; // not logged in
+    if (!token) return;
 
     const fetchNotifications = async () => {
       try {
-        const res = await axios.get(`https://blug-be-api.onrender.com/unread`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const res = await axios.get(
+          `https://blug-be-api.onrender.com/unread`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
 
         if (res.data.notifications?.length > 0) {
           const latest = res.data.notifications[0];
-          setNotification({
-            message: latest.message,
-            type: latest.type || "info",
-          });
+
+          // ✅ Check if this notification was already marked as seen
+          const seenNotifs = JSON.parse(
+            localStorage.getItem("seenNotifications") || "[]"
+          );
+          if (!seenNotifs.includes(latest.id)) {
+            setNotification({
+              id: latest.id,
+              message: latest.message,
+              type: latest.type || "info",
+            });
+          }
         }
       } catch (err) {
         console.error("Error fetching unread notifications:", err);
@@ -101,10 +112,32 @@ function App() {
     fetchNotifications();
   }, []);
 
+  const handleCloseNotification = async () => {
+    const token = localStorage.getItem("token");
+    if (!token || !notification?.id) return;
+
+    try {
+      await axios.put(
+        `https://blug-be-api.onrender.com/read/${notification.id}`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      // ✅ Save this notification ID to localStorage so it won’t appear again
+      const seen = JSON.parse(localStorage.getItem("seenNotifications") || "[]");
+      localStorage.setItem("seenNotifications", JSON.stringify([...seen, notification.id]));
+
+      setNotification(null);
+    } catch (err) {
+      console.error("Failed to mark notification as read:", err);
+    }
+  };
+
   return (
     <BlogProvider>
       <div>
         <Routes>
+          {/* 🧩 All your existing routes here, unchanged */}
           <Route
             path="/"
             element={
@@ -157,7 +190,6 @@ function App() {
               </>
             }
           />
-
           <Route
             path="/profile/:id"
             element={
@@ -167,7 +199,6 @@ function App() {
               </>
             }
           />
-
           <Route
             path="/suspend/:id"
             element={
@@ -177,12 +208,10 @@ function App() {
               </>
             }
           />
-
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/login" element={<Login />} />
           <Route path="/verify-payment" element={<VerifyPayment />} />
           <Route path="/register" element={<Register />} />
-
           <Route
             path="/blogs"
             element={
@@ -193,7 +222,6 @@ function App() {
               </>
             }
           />
-
           <Route
             path="/forget"
             element={
@@ -202,7 +230,6 @@ function App() {
               </>
             }
           />
-
           <Route
             path="/blog/:id"
             element={
@@ -213,7 +240,6 @@ function App() {
               </>
             }
           />
-
           <Route
             path="/subscribe"
             element={
@@ -223,7 +249,6 @@ function App() {
               </>
             }
           />
-
           <Route path="/editprofile" element={<EditProfile />} />
           <Route path="/drafts" element={<Draft />} />
           <Route path="/edit-blog/:id" element={<EditBlog />} />
@@ -231,24 +256,14 @@ function App() {
 
         {/* 🔔 Promotion/Demotion Popup */}
         {notification && (
-          <div className="fixed bottom-4 right-4 bg-gray-800 text-white p-4 rounded-lg shadow-lg w-80">
-            <p className="text-lg font-semibold mb-2">{notification.type}</p>
+          <div className="fixed bottom-4 right-4 bg-gray-800 text-white p-4 rounded-lg shadow-lg w-80 z-50">
+            <p className="text-lg font-semibold mb-2 capitalize">
+              {notification.type}
+            </p>
             <p className="text-sm mb-4">{notification.message}</p>
 
             <button
-              onClick={async () => {
-                const token = localStorage.getItem("token"); // ✅ fix added here
-                try {
-                  await axios.put(
-                    `https://blug-be-api.onrender.com/read/${notification.id}`,
-                    {},
-                    { headers: { Authorization: `Bearer ${token}` } }
-                  );
-                  setNotification(null);
-                } catch (err) {
-                  console.error("Failed to mark notification as read:", err);
-                }
-              }}
+              onClick={handleCloseNotification}
               className="bg-green-600 px-4 py-2 rounded-lg hover:bg-green-700"
             >
               Close
@@ -256,14 +271,12 @@ function App() {
           </div>
         )}
 
-        {/* 🔔 Session Expired Popup */}
+        {/* 🔒 Session Expired Popup */}
         {expired && (
           <div className="fixed inset-0 flex items-center justify-center bg-black/50">
             <div className="bg-gray-950 text-white p-6 rounded-xl shadow-lg text-center">
               <h2 className="text-xl font-semibold mb-4">Session Expired</h2>
-              <p className="mb-4">
-                You have been logged out due to inactivity.
-              </p>
+              <p className="mb-4">You have been logged out due to inactivity.</p>
               <button
                 onClick={() => {
                   setExpired(false);
