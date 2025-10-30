@@ -41,7 +41,6 @@ async function getStats(req, res) {
     return res.status(500).json({ message: 'Server error', detail: err.message });
   }
 }
-
 /**
  * GET /api/admin/subscriptions?days=7|30|100
  * Returns payments joined with users. Includes amount, paymentDate, subscriptionExpiresAt and isActive.
@@ -279,18 +278,31 @@ async function suspendUser(req, res) {
 // ============================
 
 /**
- * GET /api/admin/blogs?page=1&pageSize=20
- * Returns blogs with author name, category name, likesCount, commentsCount, createdAt, updatedAt
+ * GET /api/admin/blogs?search=&page=1&pageSize=20
+ * Returns blogs with optional search across title, author name, or category
  */
 async function listBlogs(req, res) {
   try {
+    const search = (req.query.search || '').trim();
     const page = Math.max(1, Number(req.query.page) || 1);
     const pageSize = Math.max(1, Number(req.query.pageSize) || 20);
     const skip = (page - 1) * pageSize;
 
+    // if search is provided, filter by title, author name, or category name
+    const where = search
+      ? {
+          OR: [
+            { title: { contains: search, mode: 'insensitive' } },
+            { author: { username: { contains: search, mode: 'insensitive' } } },
+            { Category: { name: { contains: search, mode: 'insensitive' } } },
+          ],
+        }
+      : {};
+
     const [total, blogs] = await Promise.all([
-      prisma.blog.count(),
+      prisma.blog.count({ where }),
       prisma.blog.findMany({
+        where,
         skip,
         take: pageSize,
         orderBy: { createdAt: 'desc' },
@@ -310,7 +322,7 @@ async function listBlogs(req, res) {
       likesCount: b._count?.likes ?? 0,
       commentsCount: b._count?.comments ?? 0,
       createdAt: b.createdAt,
-      updatedAt: b.updatedAt || null, // frontend should display '-' if null or equal to createdAt
+      updatedAt: b.updatedAt || null,
     }));
 
     return res.json({
@@ -325,6 +337,7 @@ async function listBlogs(req, res) {
     return res.status(500).json({ message: 'Server error', detail: err.message });
   }
 }
+
 
 /**
  * PATCH /api/admin/blogs/:id
