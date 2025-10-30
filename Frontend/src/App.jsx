@@ -11,6 +11,7 @@ import BlogItems from "./components/BlogItems";
 import Contact from "./components/Contact";
 import Footer from "./components/Footer";
 import Forget from "./pages/Forget";
+import AdminDashboard from "./pages/AdminDashboard";
 import About from "./components/About";
 import { BlogProvider } from "./Context/BlogContext";
 import LatestBlog from "./components/LatestBlog";
@@ -250,6 +251,7 @@ function App() {
             }
           />
           <Route path="/editprofile" element={<EditProfile />} />
+          <Route path="/Dashboard" element={<AdminDashboard />} />
           <Route path="/drafts" element={<Draft />} />
           <Route path="/edit-blog/:id" element={<EditBlog />} />
         </Routes>

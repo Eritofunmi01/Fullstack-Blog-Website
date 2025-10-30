@@ -7,6 +7,7 @@ const authRoutes = require("./routes/authRoutes");
 const likeRoutes = require("./routes/likeRoutes");
 const paymentRoutes = require("./routes/paymentRoutes");
 const suspendRoutes = require("./routes/suspendRoutes");
+const adminRoutes = require("./routes/adminRoutes");
 const notificationRoutes = require("./routes/notificationRoutes")
 const favoriteRoutes = require("./routes/favoriteRoutes");
 const dotenv = require("dotenv");
@@ -57,6 +58,7 @@ app.use("/", suspendRoutes);
 app.use("/", paymentRoutes);
 app.use("/", notificationRoutes);
 app.use("/favorites", favoriteRoutes);
+app.use("/api/admin", adminRoutes);
 
 // Root route
 app.get("/", (req, res) => {
