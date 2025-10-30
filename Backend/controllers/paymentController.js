@@ -24,9 +24,9 @@ exports.initiatePayment = async (req, res) => {
     // Define amount for each plan
     let amount;
     switch (plan) {
-      case "WEEKLY": amount = 500; break;
-      case "MONTHLY": amount = 2000; break;
-      case "YEARLY": amount = 20000; break;
+      case "WEEKLY": amount = 5000; break;
+      case "MONTHLY": amount = 15000; break;
+      case "YEARLY": amount = 150000; break;
     }
 
     const tx_ref = uuidv4();
