@@ -7,7 +7,6 @@ const API_BASE = "https://blug-be-api.onrender.com/api";
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState("dashboard");
-  const [subscriptions, setSubscriptions] = useState([]);
   const [users, setUsers] = useState([]);
   const [blogs, setBlogs] = useState([]);
 
@@ -30,18 +29,32 @@ export default function AdminDashboard() {
     if (activeTab === "blogs") fetchBlogs();
   }, [activeTab]);
 
-  const fetchSubscriptions = async () => {
-    try {
-      const res = await axios.get(`${API_BASE}/admin/subscriptions?days=30`);
-      setSubscriptions(res.data.data || []);
-    } catch (error) {
-      console.error("getSubscriptions error:", error);
-    }
-  };
+// State + Fetch Logic
+const [subscriptions, setSubscriptions] = useState([]);
+const [selectedDays, setSelectedDays] = useState(30); // default filter is 30 days
+
+const fetchSubscriptions = async (days = 30) => {
+  try {
+    const res = await axios.get(`${API_BASE}/admin/subscriptions?days=${days}`, {
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem("token")}`, // make sure token is included
+      },
+    });
+    setSubscriptions(res.data.data || []);
+  } catch (error) {
+    console.error("getSubscriptions error:", error);
+  }
+};
+
+// auto fetch on load or when filter changes
+useEffect(() => {
+  fetchSubscriptions(selectedDays);
+}, [selectedDays]);
+
 
   const fetchUsers = async () => {
     try {
-      const res = await axios.get(`${API_BASE.replace("/api", "")}/users`);
+      const res = await axios.get(`https://blug-be-api.onrender.com/users`);
       setUsers(res.data.data || res.data || []);
       setFilteredUsers(res.data.data || res.data || []);
     } catch (error) {
@@ -83,7 +96,7 @@ export default function AdminDashboard() {
   const handleDeleteUser = async (id) => {
     if (!window.confirm("Are you sure you want to delete this user?")) return;
     try {
-      await axios.delete(`${API_BASE.replace("/api", "")}/users/${id}`, {
+      await axios.delete(`https://blug-be-api.onrender.com/users/${id}`, {
         withCredentials: true,
       });
       fetchUsers();
@@ -93,10 +106,13 @@ export default function AdminDashboard() {
   };
 
   const paginateUsers = (page) => setUserPage(page);
-  const paginatedUsers = filteredUsers.slice(
-    (userPage - 1) * USERS_PER_PAGE,
-    userPage * USERS_PER_PAGE
-  );
+const paginatedUsers = Array.isArray(filteredUsers)
+  ? filteredUsers.slice(
+      (userPage - 1) * USERS_PER_PAGE,
+      userPage * USERS_PER_PAGE
+    )
+  : [];
+
 
   // BLOG MANAGEMENT
   const handleBlogSearch = async (e) => {
@@ -149,40 +165,72 @@ export default function AdminDashboard() {
         ))}
       </div>
 
-      {/* DASHBOARD */}
-      {activeTab === "dashboard" && (
-        <div className="bg-gray-800 p-6 rounded-xl shadow">
-          <h2 className="text-xl text-green-600 font-semibold mb-4">Recent Subscriptions (30 days)</h2>
-          {subscriptions.length === 0 ? (
-            <p className="text-white">No subscription records found.</p>
-          ) : (
-            <table className="w-full border">
-              <thead>
-                <tr className="bg-gray-100">
-                  <th className="p-2">Username</th>
-                  <th className="p-2">Amount</th>
-                  <th className="p-2">Date</th>
-                  <th className="p-2">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {subscriptions.map((sub) => (
-                  <tr key={sub.id}>
-                    <td className="p-2 text-center">{sub.user?.username}</td>
-                    <td className="p-2 text-center">{sub.amount}</td>
-                    <td className="p-2 text-center">
-                      {new Date(sub.createdAt).toLocaleDateString()}
-                    </td>
-                    <td className="p-2 text-center">
-                      {sub.status === "ACTIVE" ? "Active" : "Expired"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-      )}
+{/* DASHBOARD */}
+{activeTab === "dashboard" && (
+  <div className="bg-gray-800 p-6 rounded-xl shadow">
+    <div className="flex justify-between items-center mb-4">
+      <h2 className="text-xl text-green-600 font-semibold">
+        Recent Subscriptions ({selectedDays} days)
+      </h2>
+      <div className="space-x-2">
+        <button
+          onClick={() => setSelectedDays(7)}
+          className={`px-3 py-1 rounded ${
+            selectedDays === 7 ? "bg-green-600 text-white" : "bg-gray-700 text-gray-300"
+          }`}
+        >
+          Last 7 Days
+        </button>
+        <button
+          onClick={() => setSelectedDays(30)}
+          className={`px-3 py-1 rounded ${
+            selectedDays === 30 ? "bg-green-600 text-white" : "bg-gray-700 text-gray-300"
+          }`}
+        >
+          Last 30 Days
+        </button>
+        <button
+          onClick={() => setSelectedDays(90)}
+          className={`px-3 py-1 rounded ${
+            selectedDays === 90 ? "bg-green-600 text-white" : "bg-gray-700 text-gray-300"
+          }`}
+        >
+          Last 90 Days
+        </button>
+      </div>
+    </div>
+
+    {subscriptions.length === 0 ? (
+      <p className="text-white">No subscription records found.</p>
+    ) : (
+      <table className="w-full border">
+        <thead>
+          <tr className="bg-gray-100">
+            <th className="p-2">Username</th>
+            <th className="p-2">Amount</th>
+            <th className="p-2">Date</th>
+            <th className="p-2">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {subscriptions.map((sub) => (
+            <tr key={sub.id}>
+              <td className="p-2 text-center">{sub.user?.username}</td>
+              <td className="p-2 text-center">{sub.amount}</td>
+              <td className="p-2 text-center">
+                {new Date(sub.createdAt).toLocaleDateString()}
+              </td>
+              <td className="p-2 text-center">
+                {sub.status === "ACTIVE" ? "Active" : "Expired"}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    )}
+  </div>
+)}
+
 
       {/* USER MANAGEMENT */}
       {activeTab === "users" && (
