@@ -4,8 +4,6 @@ const adminController = require('../controllers/adminController');
 const {authenticate, isAdmin} = require('../middleware/auth'); 
 
 
-router.use(authenticate, isAdmin);
-
 // Dashboard
 router.get('/stats', adminController.getStats);
 router.get('/subscriptions', adminController.getSubscriptions);
