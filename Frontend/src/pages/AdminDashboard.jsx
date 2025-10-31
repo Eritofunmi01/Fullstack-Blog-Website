@@ -35,7 +35,7 @@ const AdminDashboard = () => {
       const res = await axios.get(`${API_BASE}/api/admin/stats?days=${days}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      setDashboardData(res.data);
+      setDashboardData(res.data.totals);
     } catch (err) {
       setError("Failed to load dashboard data.");
     } finally {
@@ -45,10 +45,13 @@ const AdminDashboard = () => {
 
   const fetchSubscriptions = async () => {
     try {
-      const res = await axios.get(`${API_BASE}/api/admin/subscriptions`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setSubscriptions(res.data);
+      const res = await axios.get(
+        `${API_BASE}/api/admin/subscriptions?days=${days}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      setSubscriptions(res.data.subscriptions || []);
     } catch {
       setError("Failed to load subscriptions.");
     }
@@ -62,7 +65,7 @@ const AdminDashboard = () => {
         `${API_BASE}/api/admin/users?search=${search}&page=${page}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      setUsers(res.data);
+      setUsers(res.data.users || []);
     } catch {
       setError("Failed to load users.");
     } finally {
@@ -77,7 +80,7 @@ const AdminDashboard = () => {
       const res = await axios.get(`${API_BASE}/api/admin/blogs`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      setBlogs(res.data);
+      setBlogs(res.data.blogs || []);
     } catch {
       setError("Failed to load blogs.");
     } finally {
@@ -148,7 +151,7 @@ const AdminDashboard = () => {
               <div className="flex gap-2">
                 <select
                   value={days}
-                  onChange={(e) => setDays(e.target.value)}
+                  onChange={(e) => setDays(Number(e.target.value))}
                   className="bg-gray-900 border border-gray-700 text-gray-200 rounded-lg px-3 py-2"
                 >
                   <option value={7}>Last 7 days</option>
@@ -171,18 +174,9 @@ const AdminDashboard = () => {
             {dashboardData ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
                 {[
-                  {
-                    title: "Total Users",
-                    value: dashboardData.totalUsers,
-                  },
-                  {
-                    title: "Total Blogs",
-                    value: dashboardData.totalBlogs,
-                  },
-                  {
-                    title: "Total Authors",
-                    value: dashboardData.totalAuthors,
-                  },
+                  { title: "Total Users", value: dashboardData.totalUsers },
+                  { title: "Total Blogs", value: dashboardData.totalBlogs },
+                  { title: "Total Authors", value: dashboardData.totalAuthors },
                 ].map((stat, i) => (
                   <motion.div
                     key={i}
@@ -224,18 +218,18 @@ const AdminDashboard = () => {
                       >
                         <td className="p-3">{sub.username}</td>
                         <td className="p-3">{sub.plan}</td>
-                        <td className="p-3">${sub.amount}</td>
+                        <td className="p-3">${sub.amountPaid}</td>
                         <td
                           className={`p-3 font-semibold ${
-                            sub.status === "active"
-                              ? "text-green-400"
-                              : "text-red-400"
+                            sub.isActive ? "text-green-400" : "text-red-400"
                           }`}
                         >
-                          {sub.status}
+                          {sub.isActive ? "Active" : "Expired"}
                         </td>
                         <td className="p-3">
-                          {new Date(sub.paymentDate).toLocaleDateString()}
+                          {sub.paymentDate
+                            ? new Date(sub.paymentDate).toLocaleDateString()
+                            : "-"}
                         </td>
                       </tr>
                     ))
@@ -331,8 +325,8 @@ const AdminDashboard = () => {
                       <td className="p-3">{blog.title}</td>
                       <td className="p-3">{blog.authorName}</td>
                       <td className="p-3">{blog.categoryName}</td>
-                      <td className="p-3">{blog.likes}</td>
-                      <td className="p-3">{blog.comments}</td>
+                      <td className="p-3">{blog.likesCount}</td>
+                      <td className="p-3">{blog.commentsCount}</td>
                       <td className="p-3">
                         {new Date(blog.createdAt).toLocaleDateString()}
                       </td>
