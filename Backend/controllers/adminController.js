@@ -24,11 +24,11 @@ async function getStats(req, res) {
     const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
     const [totalUsers, totalBlogs, totalAuthors, newUsers, newBlogs] = await Promise.all([
-      prisma.user.count(),
-      prisma.blog.count(),
-      prisma.user.count({ where: { role: 'AUTHOR' } }),
-      prisma.user.count({ where: { createdAt: { gte: since } } }),
-      prisma.blog.count({ where: { createdAt: { gte: since } } }),
+      prisma.User.count(),
+      prisma.Blog.count(),
+      prisma.User.count({ where: { role: 'AUTHOR' } }),
+      prisma.User.count({ where: { createdAt: { gte: since } } }),
+      prisma.Blog.count({ where: { createdAt: { gte: since } } }),
     ]);
 
     return res.json({
@@ -41,6 +41,7 @@ async function getStats(req, res) {
     return res.status(500).json({ message: 'Server error', detail: err.message });
   }
 }
+
 /**
  * GET /api/admin/subscriptions?days=7|30|100
  * Returns payments joined with users. Includes amount, paymentDate, subscriptionExpiresAt and isActive.
@@ -51,8 +52,8 @@ async function getSubscriptions(req, res) {
     const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
     const now = new Date();
 
-    // fetch payments in timeframe (or all if you prefer; spec asked filter so we filter by payment.createdAt)
-    const payments = await prisma.payment.findMany({
+    // FIXED: use prisma.Payment (capital P)
+    const payments = await prisma.Payment.findMany({
       where: { createdAt: { gte: since } },
       include: {
         user: {
@@ -116,8 +117,8 @@ async function listUsers(req, res) {
       : {};
 
     const [total, users] = await Promise.all([
-      prisma.user.count({ where }),
-      prisma.user.findMany({
+      prisma.User.count({ where }),
+      prisma.User.findMany({
         where,
         select: {
           id: true,
@@ -151,8 +152,7 @@ async function listUsers(req, res) {
 
 /**
  * POST /api/admin/users
- * body: { username, email, password, role } - role: 'ADMIN'|'USER'|'AUTHOR' etc.
- * password will be hashed
+ * body: { username, email, password, role }
  */
 async function createUser(req, res) {
   try {
@@ -164,7 +164,7 @@ async function createUser(req, res) {
     const salt = await bcrypt.genSalt(10);
     const hashed = await bcrypt.hash(password, salt);
 
-    const user = await prisma.user.create({
+    const user = await prisma.User.create({
       data: {
         username,
         email,
@@ -186,8 +186,6 @@ async function createUser(req, res) {
 
 /**
  * PUT /api/admin/users/:id
- * body: { username?, email?, password?, role? }
- * password will be hashed if provided
  */
 async function updateUser(req, res) {
   try {
@@ -203,7 +201,7 @@ async function updateUser(req, res) {
       data.password = await bcrypt.hash(password, salt);
     }
 
-    const updated = await prisma.user.update({
+    const updated = await prisma.User.update({
       where: { id },
       data,
       select: { id: true, username: true, email: true, role: true, updatedAt: true },
@@ -224,7 +222,7 @@ async function updateUser(req, res) {
 async function deleteUser(req, res) {
   try {
     const id = Number(req.params.id);
-    await prisma.user.delete({ where: { id } });
+    await prisma.User.delete({ where: { id } });
     return res.json({ message: 'User deleted' });
   } catch (err) {
     console.error('deleteUser error:', err);
@@ -235,16 +233,13 @@ async function deleteUser(req, res) {
 
 /**
  * PATCH /api/admin/users/:id/suspend
- * body: { suspend: true|false, durationHours?: number }
- * - if suspend:true sets isSuspended=true and suspendedUntil = now + durationHours (default 24h)
- * - if suspend:false sets isSuspended=false and suspendedUntil=null
  */
 async function suspendUser(req, res) {
   try {
     const id = Number(req.params.id);
     const { suspend, durationHours } = req.body;
 
-    const user = await prisma.user.findUnique({ where: { id } });
+    const user = await prisma.User.findUnique({ where: { id } });
     if (!user) return res.status(404).json({ message: 'User not found' });
 
     if (suspend) {
@@ -252,7 +247,7 @@ async function suspendUser(req, res) {
       const suspendedUntil = new Date();
       suspendedUntil.setHours(suspendedUntil.getHours() + hours);
 
-      const updated = await prisma.user.update({
+      const updated = await prisma.User.update({
         where: { id },
         data: { isSuspended: true, suspendedUntil },
         select: { id: true, username: true, isSuspended: true, suspendedUntil: true },
@@ -260,7 +255,7 @@ async function suspendUser(req, res) {
 
       return res.json({ message: `User suspended for ${hours} hours`, user: updated });
     } else {
-      const updated = await prisma.user.update({
+      const updated = await prisma.User.update({
         where: { id },
         data: { isSuspended: false, suspendedUntil: null },
         select: { id: true, username: true, isSuspended: true, suspendedUntil: true },
@@ -279,7 +274,6 @@ async function suspendUser(req, res) {
 
 /**
  * GET /api/admin/blogs?search=&page=1&pageSize=20
- * Returns blogs with optional search across title, author name, or category
  */
 async function listBlogs(req, res) {
   try {
@@ -288,7 +282,6 @@ async function listBlogs(req, res) {
     const pageSize = Math.max(1, Number(req.query.pageSize) || 20);
     const skip = (page - 1) * pageSize;
 
-    // if search is provided, filter by title, author name, or category name
     const where = search
       ? {
           OR: [
@@ -300,8 +293,8 @@ async function listBlogs(req, res) {
       : {};
 
     const [total, blogs] = await Promise.all([
-      prisma.blog.count({ where }),
-      prisma.blog.findMany({
+      prisma.Blog.count({ where }),
+      prisma.Blog.findMany({
         where,
         skip,
         take: pageSize,
@@ -338,10 +331,8 @@ async function listBlogs(req, res) {
   }
 }
 
-
 /**
  * PATCH /api/admin/blogs/:id
- * body: { latest?: boolean, trending?: boolean }
  */
 async function updateBlogStatus(req, res) {
   try {
@@ -356,7 +347,7 @@ async function updateBlogStatus(req, res) {
       return res.status(400).json({ message: 'No status provided' });
     }
 
-    const updated = await prisma.blog.update({
+    const updated = await prisma.Blog.update({
       where: { id },
       data,
       select: { id: true, title: true, latest: true, trending: true, updatedAt: true },
@@ -376,7 +367,7 @@ async function updateBlogStatus(req, res) {
 async function deleteBlog(req, res) {
   try {
     const id = Number(req.params.id);
-    await prisma.blog.delete({ where: { id } });
+    await prisma.Blog.delete({ where: { id } });
     return res.json({ message: 'Blog deleted' });
   } catch (err) {
     console.error('deleteBlog error:', err);
