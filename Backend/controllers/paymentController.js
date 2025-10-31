@@ -14,19 +14,31 @@ exports.initiatePayment = async (req, res) => {
   try {
     const { plan } = req.body; // "WEEKLY" | "MONTHLY" | "YEARLY"
     const validPlans = ["WEEKLY", "MONTHLY", "YEARLY"];
+
     if (!validPlans.includes(plan)) {
       return res.status(400).json({ message: "Invalid subscription plan" });
     }
 
-    const user = await prisma.user.findUnique({ where: { id: req.user.id } });
-    if (!user) return res.status(404).json({ message: "User not found" });
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.id },
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
 
     // Define amount for each plan
     let amount;
     switch (plan) {
-      case "WEEKLY": amount = 5000; break;
-      case "MONTHLY": amount = 15000; break;
-      case "YEARLY": amount = 150000; break;
+      case "WEEKLY":
+        amount = 5000;
+        break;
+      case "MONTHLY":
+        amount = 15000;
+        break;
+      case "YEARLY":
+        amount = 150000;
+        break;
     }
 
     const tx_ref = uuidv4();
@@ -42,7 +54,7 @@ exports.initiatePayment = async (req, res) => {
       },
       meta: {
         plan,
-        userId: user.id, // optional, just for reference
+        userId: user.id,
       },
       customizations: {
         title: "Blog Subscription",
@@ -50,6 +62,7 @@ exports.initiatePayment = async (req, res) => {
       },
     };
 
+    // Send payment request to Flutterwave
     const response = await fetch("https://api.flutterwave.com/v3/payments", {
       method: "POST",
       headers: {
@@ -60,14 +73,24 @@ exports.initiatePayment = async (req, res) => {
     });
 
     const data = await response.json();
+
     if (data.status === "success") {
-      return res.status(200).json({ paymentLink: data.data.link, tx_ref });
+      return res.status(200).json({
+        paymentLink: data.data.link,
+        tx_ref,
+      });
     }
 
-    return res.status(400).json({ message: "Failed to initiate payment" });
+    return res.status(400).json({
+      message: "Failed to initiate payment",
+      details: data,
+    });
   } catch (error) {
-    console.error("Initiate Payment Error:", error);
-    return res.status(500).json({ message: "Internal server error" });
+    console.error("❌ Initiate Payment Error:", error);
+    return res.status(500).json({
+      message: "Internal server error",
+      error: error.message,
+    });
   }
 };
 
@@ -76,51 +99,65 @@ exports.verifyPayment = async (req, res) => {
   try {
     const { transaction_id, tx_ref } = req.body;
 
-    // Require at least one
     if (!transaction_id && !tx_ref) {
-      return res.status(400).json({ message: "transaction_id or tx_ref is required" });
+      return res
+        .status(400)
+        .json({ message: "transaction_id or tx_ref is required" });
     }
 
-    // Prefer transaction_id if available
     const verifyUrl = transaction_id
       ? `https://api.flutterwave.com/v3/transactions/${transaction_id}/verify`
       : `https://api.flutterwave.com/v3/transactions/verify_by_reference?tx_ref=${tx_ref}`;
 
-    // ✅ Verify with Flutterwave
+    // Verify payment with Flutterwave
     const response = await fetch(verifyUrl, {
       method: "GET",
       headers: {
-        Authorization: `Bearer ${process.env.FLW_SECRET_KEY}`,
+        Authorization: `Bearer ${FLW_SECRET_KEY}`,
         "Content-Type": "application/json",
       },
     });
 
     const data = await response.json();
-    console.log("Flutterwave verify response:", data);
+    console.log("💳 Flutterwave Verify Response:", data);
 
     if (data.status !== "success" || data.data.status !== "successful") {
-      return res.status(400).json({ message: "Payment not successful", raw: data });
+      return res.status(400).json({
+        message: "Payment not successful",
+        raw: data,
+      });
     }
 
-    // Get user from middleware (JWT)
-    const user = await prisma.user.findUnique({ where: { id: req.user.id } });
-    if (!user) return res.status(404).json({ message: "User not found" });
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.id },
+    });
 
-    // Read subscription plan from metadata
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
     const plan = data.data.meta?.plan;
     if (!["WEEKLY", "MONTHLY", "YEARLY"].includes(plan)) {
-      return res.status(400).json({ message: "Invalid plan in payment metadata" });
+      return res.status(400).json({
+        message: "Invalid plan in payment metadata",
+      });
     }
 
     // Calculate subscription expiry
     let expiresAt = new Date();
     switch (plan) {
-      case "WEEKLY": expiresAt.setDate(expiresAt.getDate() + 7); break;
-      case "MONTHLY": expiresAt.setMonth(expiresAt.getMonth() + 1); break;
-      case "YEARLY": expiresAt.setFullYear(expiresAt.getFullYear() + 1); break;
+      case "WEEKLY":
+        expiresAt.setDate(expiresAt.getDate() + 7);
+        break;
+      case "MONTHLY":
+        expiresAt.setMonth(expiresAt.getMonth() + 1);
+        break;
+      case "YEARLY":
+        expiresAt.setFullYear(expiresAt.getFullYear() + 1);
+        break;
     }
 
-    // Update user
+    // Update user's subscription info
     const updatedUser = await prisma.user.update({
       where: { id: user.id },
       data: {
@@ -138,6 +175,17 @@ exports.verifyPayment = async (req, res) => {
       },
     });
 
+    // 💾 Save payment record in the database
+    await prisma.payment.create({
+      data: {
+        userId: user.id,
+        plan,
+        amount: data.data.amount,
+        status: "completed",
+        txRef: data.data.tx_ref,
+      },
+    });
+
     return res.status(200).json({
       success: true,
       message: "Subscription successful! You are now an Author.",
@@ -147,6 +195,9 @@ exports.verifyPayment = async (req, res) => {
     });
   } catch (error) {
     console.error("❌ Verify Payment Error:", error);
-    return res.status(500).json({ message: "Internal server error", error: error.message });
+    return res.status(500).json({
+      message: "Internal server error",
+      error: error.message,
+    });
   }
 };
