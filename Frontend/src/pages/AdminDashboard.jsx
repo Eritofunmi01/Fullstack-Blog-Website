@@ -1,393 +1,365 @@
-import React, { useState, useEffect } from "react";
-import { FaTrash, FaArrowLeft, FaArrowRight } from "react-icons/fa";
-import { useNavigate } from "react-router";
+// AdminDashboard.jsx — Full Fixed Version
+// Uses React + Tailwind + Axios
+
+import React, { useEffect, useState, useRef } from "react";
 import axios from "axios";
 
-const API_BASE = "https://blug-be-api.onrender.com/api";
+const TABS = ["Dashboard", "User Management", "Blog Management"];
 
 export default function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState("dashboard");
-  const [users, setUsers] = useState([]);
-  const [blogs, setBlogs] = useState([]);
+  const [activeTab, setActiveTab] = useState(TABS[0]);
+  const [error, setError] = useState(null);
 
-  const [searchUser, setSearchUser] = useState("");
-  const [searchBlog, setSearchBlog] = useState("");
-  const [filteredUsers, setFilteredUsers] = useState([]);
-  const [filteredBlogs, setFilteredBlogs] = useState([]);
+  // Dashboard
+  const [range, setRange] = useState(7);
+  const [summary, setSummary] = useState(null);
+  const [loadingSummary, setLoadingSummary] = useState(false);
 
-  const [userPage, setUserPage] = useState(1);
-  const [blogPage, setBlogPage] = useState(1);
-  const navigate = useNavigate();
-
+  // Users
   const USERS_PER_PAGE = 7;
-  const BLOGS_PER_PAGE = 7;
+  const [userPage, setUserPage] = useState(1);
+  const [usersData, setUsersData] = useState({ items: [], total: 0 });
+  const [userLoading, setUserLoading] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const searchDebounceRef = useRef(null);
 
-  // Fetch Data
+  // Blogs
+  const BLOGS_PER_PAGE = 10;
+  const [blogPage, setBlogPage] = useState(1);
+  const [blogsData, setBlogsData] = useState({ items: [], total: 0 });
+  const [blogLoading, setBlogLoading] = useState(false);
+
+  // Create user modal
+  const [showCreateUser, setShowCreateUser] = useState(false);
+  const [newUser, setNewUser] = useState({ username: "", email: "", role: "USER", password: "" });
+  const [creatingUser, setCreatingUser] = useState(false);
+
+  // ----------------- EFFECTS -----------------
   useEffect(() => {
-    if (activeTab === "dashboard") fetchSubscriptions();
-    if (activeTab === "users") fetchUsers();
-    if (activeTab === "blogs") fetchBlogs();
-  }, [activeTab]);
+    if (activeTab === "Dashboard") fetchSummary(range);
+  }, [activeTab, range]);
 
-// State + Fetch Logic
-const [subscriptions, setSubscriptions] = useState([]);
-const [selectedDays, setSelectedDays] = useState(30); // default filter is 30 days
+  useEffect(() => {
+    if (activeTab === "User Management") fetchUsers(userPage);
+  }, [activeTab, userPage]);
 
-const fetchSubscriptions = async (days = 30) => {
-  try {
-    const res = await axios.get(`${API_BASE}/admin/subscriptions?days=${days}`, {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem("token")}`, // make sure token is included
-      },
-    });
-    setSubscriptions(res.data.data || []);
-  } catch (error) {
-    console.error("getSubscriptions error:", error);
-  }
-};
+  useEffect(() => {
+    if (activeTab === "Blog Management") fetchBlogs(blogPage);
+  }, [activeTab, blogPage]);
 
-// auto fetch on load or when filter changes
-useEffect(() => {
-  fetchSubscriptions(selectedDays);
-}, [selectedDays]);
-
-
-  const fetchUsers = async () => {
+  // ----------------- API CALLS -----------------
+  async function fetchSummary(days) {
+    setLoadingSummary(true);
     try {
-      const res = await axios.get(`https://blug-be-api.onrender.com/users`);
-      setUsers(res.data.data || res.data || []);
-      setFilteredUsers(res.data.data || res.data || []);
-    } catch (error) {
-      console.error("Error fetching users:", error);
-    }
-  };
-
-  const fetchBlogs = async () => {
-    try {
-      const res = await axios.get(`${API_BASE}/blogs`);
-      setBlogs(res.data.data || res.data || []);
-      setFilteredBlogs(res.data.data || res.data || []);
-    } catch (error) {
-      console.error("Error fetching blogs:", error);
-    }
-  };
-
-  // USER MANAGEMENT
-  const handleUserSearch = (e) => {
-    const value = e.target.value.toLowerCase();
-    setSearchUser(value);
-    if (value.trim() === "") {
-      setFilteredUsers(users);
-    } else {
-      const results = users.filter(
-        (u) =>
-          u.username?.toLowerCase().includes(value) ||
-          u.email?.toLowerCase().includes(value) ||
-          u.role?.toLowerCase().includes(value)
-      );
-      setFilteredUsers(results.length ? results : []);
-    }
-  };
-
-  const handleSuspend = (id) => {
-    navigate(`/suspend/${id}`);
-  };
-
-  const handleDeleteUser = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this user?")) return;
-    try {
-      await axios.delete(`https://blug-be-api.onrender.com/users/${id}`, {
-        withCredentials: true,
+      const res = await axios.get(`/api/admin/stats?days=${days}`);
+      const subsRes = await axios.get(`/api/admin/subscriptions?days=${days}`);
+      setSummary({
+        ...res.data,
+        recentSubscriptions: Array.isArray(subsRes.data.subscriptions)
+          ? subsRes.data.subscriptions.slice(0, 5)
+          : [],
       });
-      fetchUsers();
-    } catch (error) {
-      console.error("Delete user error:", error);
+    } catch (err) {
+      console.error("fetchSummary error:", err);
+      setError("Failed to load dashboard data");
+    } finally {
+      setLoadingSummary(false);
     }
-  };
+  }
 
-  const paginateUsers = (page) => setUserPage(page);
-const paginatedUsers = Array.isArray(filteredUsers)
-  ? filteredUsers.slice(
-      (userPage - 1) * USERS_PER_PAGE,
-      userPage * USERS_PER_PAGE
-    )
-  : [];
+  async function fetchUsers(page = 1) {
+    setUserLoading(true);
+    try {
+      const res = await axios.get("/users");
+      let arr = [];
+      if (Array.isArray(res.data)) arr = res.data;
+      else if (Array.isArray(res.data.items)) arr = res.data.items;
+      else if (Array.isArray(res.data.users)) arr = res.data.users;
+      else if (res.data && typeof res.data === "object") arr = Object.values(res.data);
+      const start = (page - 1) * USERS_PER_PAGE;
+      const paged = arr.slice(start, start + USERS_PER_PAGE);
+      setUsersData({ items: paged, total: arr.length });
+    } catch (err) {
+      console.error("fetchUsers error:", err);
+      setError("Failed to load users");
+    } finally {
+      setUserLoading(false);
+    }
+  }
 
+  async function fetchBlogs(page = 1) {
+    setBlogLoading(true);
+    try {
+      const res = await axios.get("/api/blogs");
+      let arr = [];
+      if (Array.isArray(res.data)) arr = res.data;
+      else if (Array.isArray(res.data.items)) arr = res.data.items;
+      else if (Array.isArray(res.data.blogs)) arr = res.data.blogs;
+      else if (res.data && typeof res.data === "object") arr = Object.values(res.data);
 
-  // BLOG MANAGEMENT
-  const handleBlogSearch = async (e) => {
-    const value = e.target.value.toLowerCase();
-    setSearchBlog(value);
-    if (value.trim() === "") {
-      fetchBlogs();
+      const normalized = arr.map(b => ({
+        ...b,
+        trending: b.trending ?? false,
+        latest: b.latest ?? false,
+        likesCount: b.likesCount ?? b._count?.likes ?? 0,
+        commentsCount: b.commentsCount ?? b._count?.comments ?? 0,
+      }));
+
+      const start = (page - 1) * BLOGS_PER_PAGE;
+      const paged = normalized.slice(start, start + BLOGS_PER_PAGE);
+      setBlogsData({ items: paged, total: normalized.length });
+    } catch (err) {
+      console.error("fetchBlogs error:", err);
+      setError("Failed to load blogs");
+    } finally {
+      setBlogLoading(false);
+    }
+  }
+
+  // ----------------- SEARCH -----------------
+  function onSearchChange(value) {
+    setSearchTerm(value);
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+
+    if (!value.trim()) {
+      if (activeTab === "User Management") fetchUsers(1);
+      if (activeTab === "Blog Management") fetchBlogs(1);
       return;
     }
-    try {
-      const res = await axios.get(`${API_BASE}/blogs/search?query=${value}`);
-      setFilteredBlogs(res.data.data || []);
-    } catch (error) {
-      console.error("Error searching blogs:", error);
-    }
-  };
 
-  const handleDeleteBlog = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this blog?")) return;
-    try {
-      await axios.delete(`${API_BASE}/blog/${id}`, {
-        withCredentials: true,
-      });
-      fetchBlogs();
-    } catch (error) {
-      console.error("Delete blog error:", error);
-    }
-  };
+    searchDebounceRef.current = setTimeout(async () => {
+      if (activeTab === "Blog Management") {
+        try {
+          const res = await axios.get(`/api/blogs/search?query=${encodeURIComponent(value)}`);
+          const arr = Array.isArray(res.data) ? res.data : res.data.data || res.data.items || [];
+          setBlogsData({ items: arr, total: arr.length });
+        } catch {
+          setBlogsData({ items: [], total: 0 });
+        }
+      } else if (activeTab === "User Management") {
+        try {
+          const res = await axios.get("/users");
+          const arr = Array.isArray(res.data)
+            ? res.data
+            : res.data.users || res.data.items || [];
+          const filtered = arr.filter(u =>
+            (u.username || "").toLowerCase().includes(value.toLowerCase()) ||
+            (u.email || "").toLowerCase().includes(value.toLowerCase()) ||
+            (u.role || "").toLowerCase().includes(value.toLowerCase())
+          );
+          setUsersData({ items: filtered.slice(0, USERS_PER_PAGE), total: filtered.length });
+        } catch {
+          setUsersData({ items: [], total: 0 });
+        }
+      }
+    }, 300);
+  }
 
-  const paginateBlogs = (page) => setBlogPage(page);
-  const paginatedBlogs = filteredBlogs.slice(
-    (blogPage - 1) * BLOGS_PER_PAGE,
-    blogPage * BLOGS_PER_PAGE
-  );
+  // ----------------- ACTIONS -----------------
+  async function handleSuspendUser(id) {
+    window.location.href = `/suspend/${id}`;
+  }
+
+  async function handleDeleteUser(id) {
+    if (!confirm("Delete this user?")) return;
+    await axios.delete(`/users/${id}`);
+    fetchUsers(userPage);
+  }
+
+  async function handleDeleteBlog(id) {
+    if (!confirm("Delete this blog?")) return;
+    await axios.delete(`/api/blog/${id}`);
+    fetchBlogs(blogPage);
+  }
+
+  // ----------------- RENDER -----------------
+  const totalUserPages = Math.max(1, Math.ceil(usersData.total / USERS_PER_PAGE));
+  const totalBlogPages = Math.max(1, Math.ceil(blogsData.total / BLOGS_PER_PAGE));
 
   return (
-    <div className="p-6 bg-gray-950 min-h-screen">
-      {/* Tabs */}
-      <div className="flex justify-center mb-6">
-        {["dashboard", "users", "blogs"].map((tab) => (
-          <button
-            key={tab}
-            className={`px-6 py-2 rounded-full mx-2 ${
-              activeTab === tab ? "bg-blue-600 text-white" : "bg-gray-500 text-white"
-            }`}
-            onClick={() => setActiveTab(tab)}
-          >
-            {tab === "dashboard" ? "Admin Dashboard" : tab === "users" ? "User Management" : "Blog Management"}
-          </button>
-        ))}
-      </div>
+    <div className="min-h-screen bg-gray-900 text-white p-6">
+      <div className="max-w-7xl mx-auto">
+        <header className="flex items-center justify-between mb-6">
+          <h1 className="text-2xl font-semibold">Admin Dashboard</h1>
+          <div className="flex gap-2">
+            {TABS.map(tab => (
+              <button
+                key={tab}
+                onClick={() => { setActiveTab(tab); setError(null); setSearchTerm(""); }}
+                className={`px-3 py-1 rounded-2xl text-sm ${
+                  activeTab === tab ? "bg-gray-800" : "bg-gray-950/50"
+                }`}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
+        </header>
 
-{/* DASHBOARD */}
-{activeTab === "dashboard" && (
-  <div className="bg-gray-800 p-6 rounded-xl shadow">
-    <div className="flex justify-between items-center mb-4">
-      <h2 className="text-xl text-green-600 font-semibold">
-        Recent Subscriptions ({selectedDays} days)
-      </h2>
-      <div className="space-x-2">
-        <button
-          onClick={() => setSelectedDays(7)}
-          className={`px-3 py-1 rounded ${
-            selectedDays === 7 ? "bg-green-600 text-white" : "bg-gray-700 text-gray-300"
-          }`}
-        >
-          Last 7 Days
-        </button>
-        <button
-          onClick={() => setSelectedDays(30)}
-          className={`px-3 py-1 rounded ${
-            selectedDays === 30 ? "bg-green-600 text-white" : "bg-gray-700 text-gray-300"
-          }`}
-        >
-          Last 30 Days
-        </button>
-        <button
-          onClick={() => setSelectedDays(90)}
-          className={`px-3 py-1 rounded ${
-            selectedDays === 90 ? "bg-green-600 text-white" : "bg-gray-700 text-gray-300"
-          }`}
-        >
-          Last 90 Days
-        </button>
+        {/* DASHBOARD TAB */}
+        {activeTab === "Dashboard" && (
+          <section>
+            <div className="flex justify-between mb-4">
+              <div>
+                <label>Range:</label>
+                <select
+                  value={range}
+                  onChange={e => setRange(Number(e.target.value))}
+                  className="bg-gray-800 ml-2 rounded px-2 py-1"
+                >
+                  <option value={7}>Last 7 days</option>
+                  <option value={30}>Last 30 days</option>
+                  <option value={100}>Last 100 days</option>
+                </select>
+              </div>
+              <button onClick={() => fetchSummary(range)} className="px-3 py-1 rounded bg-gray-800">
+                Refresh
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <SummaryCard title="Total Users" value={summary?.totals?.totalUsers ?? "—"} />
+              <SummaryCard title="Total Authors" value={summary?.totals?.totalAuthors ?? "—"} />
+              <SummaryCard title="Total Blogs" value={summary?.totals?.totalBlogs ?? "—"} />
+              <SummaryCard title="New Users" value={summary?.newInTimeframe?.newUsers ?? "—"} />
+            </div>
+
+            <div className="mt-6 bg-gray-950/30 p-4 rounded">
+              <h3 className="text-lg mb-3">Recent Subscriptions</h3>
+              {Array.isArray(summary?.recentSubscriptions) && summary.recentSubscriptions.length ? (
+                <table className="w-full text-left text-sm">
+                  <thead>
+                    <tr className="text-gray-300">
+                      <th>User</th><th>Amount</th><th>Date</th><th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {summary.recentSubscriptions.map(s => (
+                      <tr key={s.id} className="border-t border-gray-800">
+                        <td>{s.username}</td>
+                        <td>{s.amountPaid ?? "-"}</td>
+                        <td>{new Date(s.createdAt).toLocaleString()}</td>
+                        <td>{s.isActive ? "active" : "expired"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <p className="text-gray-400 text-sm">No recent subscriptions</p>
+              )}
+            </div>
+          </section>
+        )}
+
+        {/* USER MANAGEMENT */}
+        {activeTab === "User Management" && (
+          <section>
+            <div className="flex justify-between mb-4">
+              <input
+                placeholder="Search username, email or role"
+                value={searchTerm}
+                onChange={e => onSearchChange(e.target.value)}
+                className="px-3 py-2 rounded bg-gray-800 text-sm w-64"
+              />
+            </div>
+
+            <div className="bg-gray-950/20 rounded p-3 overflow-auto">
+              <table className="w-full text-left text-sm">
+                <thead>
+                  <tr className="text-gray-300">
+                    <th>Username</th><th>Email</th><th>Role</th><th>Created</th><th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {userLoading ? (
+                    <tr><td colSpan={5}>Loading...</td></tr>
+                  ) : Array.isArray(usersData.items) && usersData.items.length ? (
+                    usersData.items.map(u => (
+                      <tr key={u.id} className="border-t border-gray-800">
+                        <td>{u.username}</td>
+                        <td>{u.email}</td>
+                        <td>{u.role}</td>
+                        <td>{new Date(u.createdAt).toLocaleDateString()}</td>
+                        <td className="flex gap-2">
+                          <button onClick={() => handleSuspendUser(u.id)} className="px-2 py-1 bg-yellow-600 rounded text-xs">Suspend</button>
+                          <button onClick={() => handleDeleteUser(u.id)} className="px-2 py-1 bg-red-600 rounded text-xs">Delete</button>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr><td colSpan={5} className="text-gray-400">No users found</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
+
+        {/* BLOG MANAGEMENT */}
+        {activeTab === "Blog Management" && (
+          <section>
+            <div className="flex justify-between mb-4">
+              <input
+                placeholder="Search blogs by title, author or category"
+                value={searchTerm}
+                onChange={e => onSearchChange(e.target.value)}
+                className="px-3 py-2 rounded bg-gray-800 text-sm w-64"
+              />
+            </div>
+
+            <div className="bg-gray-950/20 rounded p-3 overflow-auto">
+              <table className="w-full text-left text-sm">
+                <thead>
+                  <tr className="text-gray-300">
+                    <th>Title</th><th>Author</th><th>Likes</th><th>Comments</th>
+                    <th>Category</th><th>Status</th><th>Created</th><th>Updated</th><th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {blogLoading ? (
+                    <tr><td colSpan={9}>Loading...</td></tr>
+                  ) : Array.isArray(blogsData.items) && blogsData.items.length ? (
+                    blogsData.items.map(b => (
+                      <tr key={b.id} className="border-t border-gray-800">
+                        <td>{b.title}</td>
+                        <td>{b.author?.username ?? "N/A"}</td>
+                        <td>{b.likesCount}</td>
+                        <td>{b.commentsCount}</td>
+                        <td>{b.Category?.name ?? "N/A"}</td>
+                        <td>
+                          {b.trending ? (
+                            <span className="text-green-400">Trending</span>
+                          ) : b.latest ? (
+                            <span className="text-blue-300">Latest</span>
+                          ) : (
+                            <span className="text-gray-400">-</span>
+                          )}
+                        </td>
+                        <td>{new Date(b.createdAt).toLocaleDateString()}</td>
+                        <td>{b.updatedAt ? new Date(b.updatedAt).toLocaleDateString() : "-"}</td>
+                        <td><button onClick={() => handleDeleteBlog(b.id)} className="px-2 py-1 bg-red-600 rounded text-xs">Delete</button></td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr><td colSpan={9} className="text-gray-400">No blogs found</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
+
+        {error && <div className="mt-4 text-red-400">{error}</div>}
       </div>
     </div>
+  );
+}
 
-    {subscriptions.length === 0 ? (
-      <p className="text-white">No subscription records found.</p>
-    ) : (
-      <table className="w-full border">
-        <thead>
-          <tr className="bg-gray-100">
-            <th className="p-2">Username</th>
-            <th className="p-2">Amount</th>
-            <th className="p-2">Date</th>
-            <th className="p-2">Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          {subscriptions.map((sub) => (
-            <tr key={sub.id}>
-              <td className="p-2 text-center">{sub.user?.username}</td>
-              <td className="p-2 text-center">{sub.amount}</td>
-              <td className="p-2 text-center">
-                {new Date(sub.createdAt).toLocaleDateString()}
-              </td>
-              <td className="p-2 text-center">
-                {sub.status === "ACTIVE" ? "Active" : "Expired"}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    )}
-  </div>
-)}
-
-
-      {/* USER MANAGEMENT */}
-      {activeTab === "users" && (
-        <div className="bg-gray-800 p-6 rounded-xl shadow">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl text-green-600 font-semibold">All Users</h2>
-            <input
-              type="text"
-              placeholder="Search users..."
-              value={searchUser}
-              onChange={handleUserSearch}
-              className="border p-2 rounded w-1/3"
-            />
-          </div>
-
-          {filteredUsers.length === 0 ? (
-            <p className="text-center text-white">No users found.</p>
-          ) : (
-            <>
-              <table className="w-full border">
-                <thead>
-                  <tr className="bg-gray-500">
-                    <th className="p-2">Username</th>
-                    <th className="p-2">Email</th>
-                    <th className="p-2">Role</th>
-                    <th className="p-2">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {paginatedUsers.map((user) => (
-                    <tr key={user.id}>
-                      <td className="p-2 text-center">{user.username}</td>
-                      <td className="p-2 text-center">{user.email}</td>
-                      <td className="p-2 text-center">{user.role}</td>
-                      <td className="p-2 flex justify-center gap-3">
-                        <button
-                          onClick={() => handleSuspend(user.id)}
-                          className="px-3 py-1 bg-yellow-500 text-white rounded"
-                        >
-                          Suspend
-                        </button>
-                        <FaTrash
-                          className="text-red-600 cursor-pointer"
-                          onClick={() => handleDeleteUser(user.id)}
-                        />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-
-              {/* Pagination */}
-              <div className="flex justify-center items-center mt-4 gap-3">
-                <FaArrowLeft
-                  className={`cursor-pointer ${userPage === 1 && "opacity-30"}`}
-                  onClick={() => userPage > 1 && paginateUsers(userPage - 1)}
-                />
-                <span>Page {userPage}</span>
-                <FaArrowRight
-                  className={`cursor-pointer ${
-                    userPage * USERS_PER_PAGE >= filteredUsers.length && "opacity-30"
-                  }`}
-                  onClick={() =>
-                    userPage * USERS_PER_PAGE < filteredUsers.length &&
-                    paginateUsers(userPage + 1)
-                  }
-                />
-              </div>
-            </>
-          )}
-        </div>
-      )}
-
-      {/* BLOG MANAGEMENT */}
-      {activeTab === "blogs" && (
-        <div className="bg-white p-6 rounded-xl shadow">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-semibold">All Blogs</h2>
-            <input
-              type="text"
-              placeholder="Search blogs..."
-              value={searchBlog}
-              onChange={handleBlogSearch}
-              className="border p-2 rounded w-1/3"
-            />
-          </div>
-
-          {filteredBlogs.length === 0 ? (
-            <p className="text-center text-gray-500">No blogs found.</p>
-          ) : (
-            <>
-              <table className="w-full border">
-                <thead>
-                  <tr className="bg-gray-100">
-                    <th className="p-2">Title</th>
-                    <th className="p-2">Author</th>
-                    <th className="p-2">Category</th>
-                    <th className="p-2">Likes</th>
-                    <th className="p-2">Comments</th>
-                    <th className="p-2">Created</th>
-                    <th className="p-2">Updated</th>
-                    <th className="p-2">Status</th>
-                    <th className="p-2">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {paginatedBlogs.map((blog) => (
-                    <tr key={blog.id}>
-                      <td className="p-2 text-center">{blog.title}</td>
-                      <td className="p-2 text-center">{blog.author?.username}</td>
-                      <td className="p-2 text-center">{blog.Category?.name}</td>
-                      <td className="p-2 text-center">{blog.likes?.length || 0}</td>
-                      <td className="p-2 text-center">{blog.comments?.length || 0}</td>
-                      <td className="p-2 text-center">
-                        {new Date(blog.createdAt).toLocaleDateString()}
-                      </td>
-                      <td className="p-2 text-center">
-                        {new Date(blog.updatedAt).toLocaleDateString() ===
-                        new Date(blog.createdAt).toLocaleDateString()
-                          ? "-"
-                          : new Date(blog.updatedAt).toLocaleDateString()}
-                      </td>
-                      <td className="p-2 text-center">
-                        {blog.trending ? "Trending" : blog.latest ? "Latest" : "-"}
-                      </td>
-                      <td className="p-2 text-center">
-                        <FaTrash
-                          className="text-red-600 cursor-pointer"
-                          onClick={() => handleDeleteBlog(blog.id)}
-                        />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-
-              {/* Pagination */}
-              <div className="flex justify-center items-center mt-4 gap-3">
-                <FaArrowLeft
-                  className={`cursor-pointer ${blogPage === 1 && "opacity-30"}`}
-                  onClick={() => blogPage > 1 && paginateBlogs(blogPage - 1)}
-                />
-                <span>Page {blogPage}</span>
-                <FaArrowRight
-                  className={`cursor-pointer ${
-                    blogPage * BLOGS_PER_PAGE >= filteredBlogs.length && "opacity-30"
-                  }`}
-                  onClick={() =>
-                    blogPage * BLOGS_PER_PAGE < filteredBlogs.length &&
-                    paginateBlogs(blogPage + 1)
-                  }
-                />
-              </div>
-            </>
-          )}
-        </div>
-      )}
+function SummaryCard({ title, value }) {
+  return (
+    <div className="bg-gray-800/50 rounded p-4 text-center">
+      <h4 className="text-gray-400 text-sm">{title}</h4>
+      <p className="text-xl font-semibold mt-2">{value}</p>
     </div>
   );
 }
