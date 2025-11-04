@@ -20,6 +20,8 @@ export default function ProfilePage() {
   const [loadingFavorites, setLoadingFavorites] = useState(false);
   const [totalLikes, setTotalLikes] = useState(0);
 
+  const [currentUserRole, setCurrentUserRole] = useState(null);
+
   const API_BASE = "https://blug-be-api.onrender.com";
 
   // ✅ Fetch Profile
@@ -185,7 +187,8 @@ export default function ProfilePage() {
 
   if (loading) return <Loader message="Loading profile..." />;
   if (error) return <Error message={error} onRetry={fetchProfile} />;
-  if (!user) return <Error message="No profile found." onRetry={fetchProfile} />;
+  if (!user)
+    return <Error message="No profile found." onRetry={fetchProfile} />;
 
   const roleDisplay =
     String(loggedInUser?.role ?? "").toLowerCase() === "admin"
@@ -193,8 +196,8 @@ export default function ProfilePage() {
       : user.role === "AUTHOR"
       ? { label: "Author", style: "bg-green-600 text-white" }
       : user.role === "CREATOR"
-      ? {label: "Creator", style: "bg-yellow-800 text-yellow-200"}
-      : { label: "Reader", style: "bg-gray-700 text-white"};
+      ? { label: "Creator", style: "bg-yellow-800 text-yellow-200" }
+      : { label: "Reader", style: "bg-gray-700 text-white" };
 
   const renderBadgeMessage = () => {
     if (user.role === "USER" || user.role === "READER") {
@@ -280,7 +283,7 @@ export default function ProfilePage() {
               </p>
             )}
 
-            <div className="flex gap-4 mt-4">
+            <div className="flex flex-wrap justify-center gap-3 mt-4">
               {isOwner && (
                 <>
                   <Link
@@ -289,6 +292,7 @@ export default function ProfilePage() {
                   >
                     Edit Profile
                   </Link>
+
                   <button
                     onClick={handleDeleteAccount}
                     className="px-4 py-2 bg-red-600 rounded-xl hover:bg-red-700"
@@ -296,6 +300,17 @@ export default function ProfilePage() {
                     Delete Account
                   </button>
                 </>
+              )}
+
+              {/* 👑 Visible ONLY to Admins & Creators */}
+              {(loggedInUser?.role === "ADMIN" ||
+                loggedInUser?.role === "CREATOR") && (
+                <button
+                  onClick={() => navigate("/Dashboard")}
+                  className="px-4 py-2 bg-green-600 rounded-xl text-white hover:bg-green-800 flex items-center gap-2"
+                >
+                  Go to Dashboard
+                </button>
               )}
 
               {isAdmin && !isOwner && (
@@ -349,7 +364,7 @@ export default function ProfilePage() {
                 {user.blogs?.length > 0 ? (
                   user.blogs.map((blog) => (
                     <div
-                        onClick={() => navigate(`/blog/${blog.id}`)}
+                      onClick={() => navigate(`/blog/${blog.id}`)}
                       key={blog.id}
                       className=" bg-gray-800 p-4 rounded-xl flex justify-between items-center hover:bg-gray-700 transition"
                     >
@@ -445,9 +460,7 @@ export default function ProfilePage() {
                     </div>
                   ))
                 ) : (
-                  <p className="text-gray-400 text-center">
-                    No favorites yet.
-                  </p>
+                  <p className="text-gray-400 text-center">No favorites yet.</p>
                 )}
               </div>
             )}
@@ -461,8 +474,7 @@ export default function ProfilePage() {
                   <b>Role:</b> {user.role}
                 </p>
                 <p>
-                  <b>Member since:</b>{" "}
-                  {new Date(user.createdAt).toDateString()}
+                  <b>Member since:</b> {new Date(user.createdAt).toDateString()}
                 </p>
               </div>
             )}

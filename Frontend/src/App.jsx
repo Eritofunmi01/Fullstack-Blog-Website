@@ -251,7 +251,13 @@ function App() {
             }
           />
           <Route path="/editprofile" element={<EditProfile />} />
-          <Route path="/Dashboard" element={<AdminDashboard />} />
+          <Route path="/Dashboard" element=
+          {<>
+          <Header />
+          <AdminDashboard />
+          </>
+        } 
+          />
           <Route path="/drafts" element={<Draft />} />
           <Route path="/edit-blog/:id" element={<EditBlog />} />
         </Routes>

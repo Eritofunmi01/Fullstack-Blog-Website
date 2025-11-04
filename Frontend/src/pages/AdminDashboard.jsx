@@ -1,4 +1,4 @@
-// AdminDashboard.jsx — Final Merged / Fixed Version
+// AdminDashboard.jsx — Final Fixed (Create User modal cleaned, single modal state, consistent endpoint)
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { FiTrash2 } from "react-icons/fi";
@@ -17,7 +17,7 @@ export default function AdminDashboard() {
 
   // Dashboard
   const [range, setRange] = useState(7);
-  const [stats, setStats] = useState(null); // expects { timeframeDays, totals: { totalUsers, totalBlogs, totalAuthors }, newInTimeframe: {...} }
+  const [stats, setStats] = useState(null);
   const [subscriptions, setSubscriptions] = useState([]);
   const [loadingDashboard, setLoadingDashboard] = useState(false);
 
@@ -27,8 +27,6 @@ export default function AdminDashboard() {
   const [userPage, setUserPage] = useState(1);
   const [userSearch, setUserSearch] = useState("");
   const [userLoading, setUserLoading] = useState(false);
-  const [showCreatePopup, setShowCreatePopup] = useState(false);
-  const [newUser, setNewUser] = useState({ username: "", email: "", password: "", role: "USER" });
 
   // Blogs
   const [blogsRaw, setBlogsRaw] = useState([]);
@@ -37,13 +35,23 @@ export default function AdminDashboard() {
   const [blogSearch, setBlogSearch] = useState("");
   const [blogLoading, setBlogLoading] = useState(false);
 
+  // Create user modal state (single consistent state)
+  const [showCreatePopup, setShowCreatePopup] = useState(false);
+  const [newUser, setNewUser] = useState({ username: "", email: "", password: "", role: "USER" });
+  const [createMessage, setCreateMessage] = useState("");
+  const [creatingUser, setCreatingUser] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+
+
   // Auth
   const [currentUserRole, setCurrentUserRole] = useState(null);
   const [currentUserId, setCurrentUserId] = useState(null);
 
+  // API base (use paths already used elsewhere in your app)
   const API_BASE = "https://blug-be-api.onrender.com/api";
+  const SIGNUP_URL = "https://blug-be-api.onrender.com/signup"; // your router uses POST /signup
 
-  // ==================== JWT Decode ====================
+  // ----------------- JWT helper -----------------
   const decodeJwt = (token) => {
     try {
       if (!token) return null;
@@ -53,7 +61,8 @@ export default function AdminDashboard() {
       const base64 = payload.replace(/-/g, "+").replace(/_/g, "/");
       const padded = base64.padEnd(base64.length + (4 - (base64.length % 4)) % 4, "=");
       return JSON.parse(atob(padded));
-    } catch {
+    } catch (e) {
+      console.warn("JWT decode failed", e);
       return null;
     }
   };
@@ -62,14 +71,17 @@ export default function AdminDashboard() {
     const token = localStorage.getItem("token") || localStorage.getItem("authToken");
     const payload = decodeJwt(token);
     if (payload) {
-      const role = (payload.role || payload.user?.role || "").toUpperCase();
+      const role = (payload.role || payload.user?.role || "").toString().toUpperCase();
       const id = payload.id || payload.user?.id || payload.sub || null;
-      setCurrentUserRole(role);
-      setCurrentUserId(id);
+      setCurrentUserRole(role || null);
+      setCurrentUserId(id ?? null);
+    } else {
+      setCurrentUserRole(null);
+      setCurrentUserId(null);
     }
   }, []);
 
-  // ==================== API Fetches ====================
+  // ----------------- API CALLS -----------------
   const fetchDashboard = async (days = 7) => {
     setLoadingDashboard(true);
     try {
@@ -78,7 +90,6 @@ export default function AdminDashboard() {
         axios.get(`${API_BASE}/admin/subscriptions?days=${days}`),
       ]);
       setStats(statsRes.data || null);
-      // subscriptions may be in subsRes.data.subscriptions or subsRes.data
       const subs = subsRes.data?.subscriptions ?? subsRes.data ?? [];
       setSubscriptions(Array.isArray(subs) ? subs : []);
     } catch (err) {
@@ -94,7 +105,7 @@ export default function AdminDashboard() {
     try {
       const res = await axios.get(`https://blug-be-api.onrender.com/users`);
       let arr = Array.isArray(res.data) ? res.data : res.data.users || res.data.items || [];
-      arr = arr.map(u => ({ ...u, role: (u.role || "").toString().toUpperCase() }));
+      arr = arr.map((u) => ({ ...u, role: (u.role || "").toString().toUpperCase() }));
       setUsersRaw(arr);
       applyUserFilterAndPaginate(1, userSearch, arr);
     } catch (err) {
@@ -110,7 +121,7 @@ export default function AdminDashboard() {
     try {
       const res = await axios.get(`${API_BASE}/blogs`);
       const arr = Array.isArray(res.data) ? res.data : res.data.blogs || res.data.items || res.data.data || [];
-      const normalized = arr.map(b => ({
+      const normalized = arr.map((b) => ({
         ...b,
         trending: b.trending ?? false,
         latest: b.latest ?? false,
@@ -128,14 +139,15 @@ export default function AdminDashboard() {
     }
   };
 
-  // ==================== Filter & Paginate ====================
+  // ----------------- Filter + Pagination -----------------
   const applyUserFilterAndPaginate = (page = 1, query = "", arr = []) => {
     const q = (query || "").trim().toLowerCase();
     const filtered = q
-      ? arr.filter(u =>
-          (u.username || "").toLowerCase().includes(q) ||
-          (u.email || "").toLowerCase().includes(q) ||
-          (u.role || "").toLowerCase().includes(q)
+      ? arr.filter(
+          (u) =>
+            (u.username || "").toLowerCase().includes(q) ||
+            (u.email || "").toLowerCase().includes(q) ||
+            (u.role || "").toLowerCase().includes(q)
         )
       : arr.slice();
     const start = (page - 1) * USERS_PER_PAGE;
@@ -145,32 +157,52 @@ export default function AdminDashboard() {
   const applyBlogFilterAndPaginate = (page = 1, query = "", arr = []) => {
     const q = (query || "").trim().toLowerCase();
     const filtered = q
-      ? arr.filter(b =>
-          (b.title || "").toLowerCase().includes(q) ||
-          (b.Category?.name || "").toLowerCase().includes(q) ||
-          (b.author?.username || "").toLowerCase().includes(q)
+      ? arr.filter(
+          (b) =>
+            (b.title || "").toLowerCase().includes(q) ||
+            (b.Category?.name || "").toLowerCase().includes(q) ||
+            (b.author?.username || "").toLowerCase().includes(q)
         )
       : arr.slice();
     const start = (page - 1) * BLOGS_PER_PAGE;
     setBlogsData({ items: filtered.slice(start, start + BLOGS_PER_PAGE), total: filtered.length });
   };
 
-  // ==================== Create User (kept) ====================
-  async function handleCreateUser(e) {
+  // ----------------- Create User -----------------
+  // NOTE: your backend signup controller in the code you shared forces role: "USER".
+  // So even if the UI sends role: "ADMIN", the current endpoint will create a USER.
+  // If you add an admin-aware create route you can swap SIGNUP_URL to that endpoint.
+  const handleCreateUser = async (e) => {
     e.preventDefault();
+    setCreateMessage("");
+    setCreatingUser(true);
+
     try {
-      await axios.post("https://blug-be-api.onrender.com/signup", newUser);
-      alert("User created successfully!");
+      // Use the signup route you provided. It expects { username, email, password }.
+      // Sending role as well won't hurt but your controller currently ignores it.
+      const payload = {
+        username: newUser.username,
+        email: newUser.email,
+        password: newUser.password,
+        role: newUser.role, // backend may ignore this currently
+      };
+
+      await axios.post(SIGNUP_URL, payload);
+      setCreateMessage("✅ User created successfully.");
       setShowCreatePopup(false);
       setNewUser({ username: "", email: "", password: "", role: "USER" });
+      // refresh users
       fetchUsers();
     } catch (err) {
       console.error("create user failed", err);
-      alert("Failed to create user. Check input or server logs.");
+      const msg = err.response?.data?.message || "Failed to create user. Check server logs.";
+      setCreateMessage(`❌ ${msg}`);
+    } finally {
+      setCreatingUser(false);
     }
-  }
+  };
 
-  // ==================== User / Blog Actions ====================
+  // ----------------- Delete / Suspend -----------------
   const handleDeleteUser = async (id) => {
     if (!confirm("Delete this user?")) return;
     const token = localStorage.getItem("token") || localStorage.getItem("authToken");
@@ -197,14 +229,28 @@ export default function AdminDashboard() {
     }
   };
 
-  // ==================== Effects ====================
-  useEffect(() => { if (activeTab === "Dashboard") fetchDashboard(range); }, [activeTab, range]);
-  useEffect(() => { if (activeTab === "User Management") fetchUsers(); }, [activeTab]);
-  useEffect(() => { if (activeTab === "Blog Management") fetchBlogs(); }, [activeTab]);
-  useEffect(() => { applyUserFilterAndPaginate(userPage, userSearch, usersRaw); }, [userPage, userSearch, usersRaw]);
-  useEffect(() => { applyBlogFilterAndPaginate(blogPage, blogSearch, blogsRaw); }, [blogPage, blogSearch, blogsRaw]);
+  // ----------------- Effects -----------------
+  useEffect(() => {
+    if (activeTab === "Dashboard") fetchDashboard(range);
+  }, [activeTab, range]);
 
-  // ==================== Render ====================
+  useEffect(() => {
+    if (activeTab === "User Management") fetchUsers();
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab === "Blog Management") fetchBlogs();
+  }, [activeTab]);
+
+  useEffect(() => {
+    applyUserFilterAndPaginate(userPage, userSearch, usersRaw);
+  }, [userPage, userSearch, usersRaw]);
+
+  useEffect(() => {
+    applyBlogFilterAndPaginate(blogPage, blogSearch, blogsRaw);
+  }, [blogPage, blogSearch, blogsRaw]);
+
+  // ----------------- Render -----------------
   const totalUserPages = Math.max(1, Math.ceil(usersData.total / USERS_PER_PAGE));
   const totalBlogPages = Math.max(1, Math.ceil(blogsData.total / BLOGS_PER_PAGE));
 
@@ -214,7 +260,7 @@ export default function AdminDashboard() {
         {/* Header */}
         <Header tabs={TABS} activeTab={activeTab} setActiveTab={setActiveTab} />
 
-        {/* Tab Contents */}
+        {/* Tabs */}
         {activeTab === "Dashboard" && (
           <DashboardTab
             range={range}
@@ -227,19 +273,149 @@ export default function AdminDashboard() {
         )}
 
         {activeTab === "User Management" && (
-          <ManagementTab
-            type="users"
-            items={usersData.items}
-            search={userSearch}
-            setSearch={setUserSearch}
-            page={userPage}
-            setPage={setUserPage}
-            totalPages={totalUserPages}
-            loading={userLoading}
-            onDelete={handleDeleteUser}
-            onSuspend={(id) => navigate(`/suspend/${id}`)}
-            currentUserRole={currentUserRole}
-          />
+          <section className="relative">
+            {/* Top row — title + create button (ADMIN only) */}
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold">User Management</h3>
+              {currentUserRole === "ADMIN" && (
+                <button
+                  onClick={() => { setCreateMessage(""); setShowCreatePopup(true); }}
+                  className="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded text-sm"
+                >
+                  + Create User
+                </button>
+              )}
+            </div>
+
+            {/* existing management table (unchanged) */}
+            <ManagementTab
+              type="users"
+              items={usersData.items}
+              search={userSearch}
+              setSearch={setUserSearch}
+              page={userPage}
+              setPage={setUserPage}
+              totalPages={totalUserPages}
+              loading={userLoading}
+              onDelete={handleDeleteUser}
+              onSuspend={(id) => navigate(`/suspend/${id}`)}
+              currentUserRole={currentUserRole}
+            />
+
+            {/* Create user modal (single, consistent) */}
+            {showCreatePopup && (
+              <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+                <div className="bg-gray-900 w-full max-w-md p-6 rounded-lg shadow-lg">
+                  <h4 className="text-lg mb-4 font-semibold">Create New User</h4>
+
+                  <form onSubmit={handleCreateUser} className="space-y-3">
+                    <input
+                      type="text"
+                      placeholder="Username"
+                      className="w-full px-3 py-2 bg-gray-800 rounded"
+                      value={newUser.username}
+                      onChange={(e) => setNewUser({ ...newUser, username: e.target.value })}
+                      required
+                    />
+
+                    <input
+                      type="email"
+                      placeholder="Email"
+                      className="w-full px-3 py-2 bg-gray-800 rounded"
+                      value={newUser.email}
+                      onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+                      required
+                    />
+
+<div className="relative">
+  <input
+    type={showPassword ? "text" : "password"}
+    placeholder="Password"
+    className="w-full px-3 py-2 bg-gray-800 rounded pr-10"
+    value={newUser.password}
+    onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+    required
+  />
+  <button
+    type="button"
+    onClick={() => setShowPassword(!showPassword)}
+    className="absolute inset-y-0 right-3 flex items-center text-gray-400 hover:text-gray-200"
+  >
+    {showPassword ? (
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        fill="none"
+        viewBox="0 0 24 24"
+        strokeWidth={1.5}
+        stroke="currentColor"
+        className="w-5 h-5"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M2.458 12C3.732 7.943 7.523 5 12 5c4.477 0 8.268 2.943 9.542 7-1.274 4.057-5.065 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+        />
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+        />
+      </svg>
+    ) : (
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        fill="none"
+        viewBox="0 0 24 24"
+        strokeWidth={1.5}
+        stroke="currentColor"
+        className="w-5 h-5"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M3.98 8.223A10.477 10.477 0 001.934 12C3.5 16.018 7.36 19 12 19c1.893 0 3.678-.44 5.247-1.223M9.88 9.88a3 3 0 104.24 4.24M15 15l3.586 3.586M6 6l12 12"
+        />
+      </svg>
+    )}
+  </button>
+</div>
+
+
+                    {/* Role selector kept but note: your current signup controller creates USER regardless */}
+                    <select
+                      className="w-full px-3 py-2 bg-gray-800 rounded"
+                      value={newUser.role}
+                      onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}
+                    >
+                      <option value="USER">USER</option>
+                      <option value="ADMIN">ADMIN</option>
+                    </select>
+
+                    <div className="flex justify-end gap-2 mt-3">
+                      <button
+                        type="button"
+                        onClick={() => setShowCreatePopup(false)}
+                        className="px-3 py-2 bg-gray-700 rounded"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={creatingUser}
+                        className="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded"
+                      >
+                        {creatingUser ? "Creating..." : "Create"}
+                      </button>
+                    </div>
+                  </form>
+
+                  {createMessage && (
+                    <p className="mt-3 text-sm text-center text-gray-300">{createMessage}</p>
+                  )}
+                </div>
+              </div>
+            )}
+          </section>
         )}
 
         {activeTab === "Blog Management" && (
@@ -259,32 +435,12 @@ export default function AdminDashboard() {
 
         {error && <p className="mt-4 text-red-500">{error}</p>}
       </div>
-
-      {/* CREATE USER POPUP */}
-      {showCreatePopup && (
-        <div className="fixed inset-0 bg-black/70 flex justify-center items-center z-50">
-          <form onSubmit={handleCreateUser} className="bg-gray-950 p-6 rounded w-80 flex flex-col gap-3">
-            <h2 className="text-lg font-semibold">Create New User</h2>
-            <input placeholder="Username" className="p-2 rounded bg-gray-800" value={newUser.username} onChange={e => setNewUser({ ...newUser, username: e.target.value })} required />
-            <input type="email" placeholder="Email" className="p-2 rounded bg-gray-800" value={newUser.email} onChange={e => setNewUser({ ...newUser, email: e.target.value })} required />
-            <input type="password" placeholder="Password" className="p-2 rounded bg-gray-800" value={newUser.password} onChange={e => setNewUser({ ...newUser, password: e.target.value })} required />
-            <select className="p-2 rounded bg-gray-800" value={newUser.role} onChange={e => setNewUser({ ...newUser, role: e.target.value })}>
-              <option value="USER">USER</option>
-              <option value="ADMIN">ADMIN</option>
-              <option value="CREATOR">CREATOR</option>
-            </select>
-            <div className="flex justify-end gap-2 mt-2">
-              <button type="button" className="bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded" onClick={() => setShowCreatePopup(false)}>Cancel</button>
-              <button type="submit" className="bg-green-600 hover:bg-green-700 px-3 py-1 rounded">Create</button>
-            </div>
-          </form>
-        </div>
-      )}
     </div>
   );
 }
 
-// ==================== Header Component ====================
+/* ---------- subcomponents (unchanged) ---------- */
+
 function Header({ tabs, activeTab, setActiveTab }) {
   return (
     <div className="flex flex-wrap gap-2 mb-6">
@@ -301,10 +457,8 @@ function Header({ tabs, activeTab, setActiveTab }) {
   );
 }
 
-// ==================== DashboardTab Component ====================
 function DashboardTab({ range, setRange, loading, stats, subscriptions, onRefresh }) {
-  // stats expected shape: { timeframeDays, totals: { totalUsers, totalBlogs, totalAuthors }, newInTimeframe: {...} }
-  const totals = stats?.totals ?? {};
+  const totals = stats?.totals ?? stats ?? {};
   const subs = Array.isArray(subscriptions) ? subscriptions : [];
 
   return (
@@ -312,7 +466,7 @@ function DashboardTab({ range, setRange, loading, stats, subscriptions, onRefres
       <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
         <div>
           <span className="mr-2">Filter range:</span>
-          {[7, 30, 100].map(d => (
+          {[7, 30, 100].map((d) => (
             <button key={d} onClick={() => setRange(d)} className={`mx-1 px-2 py-1 rounded ${range === d ? "bg-blue-500" : "bg-gray-700"}`}>{d} days</button>
           ))}
         </div>
@@ -322,9 +476,9 @@ function DashboardTab({ range, setRange, loading, stats, subscriptions, onRefres
       {loading ? <p>Loading...</p> : (
         <>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-            <StatCard label="Total Users" value={totals.totalUsers ?? 0} />
-            <StatCard label="Total Blogs" value={totals.totalBlogs ?? 0} />
-            <StatCard label="Total Authors" value={totals.totalAuthors ?? 0} />
+            <StatCard label="Total Users" value={totals?.totalUsers ?? 0} />
+            <StatCard label="Total Blogs" value={totals?.totalBlogs ?? 0} />
+            <StatCard label="Total Authors" value={totals?.totalAuthors ?? 0} />
             <StatCard label="New Users (range)" value={stats?.newInTimeframe?.newUsers ?? "-"} />
           </div>
 
@@ -381,7 +535,6 @@ function StatCard({ label, value }) {
   );
 }
 
-// ==================== ManagementTab Component ====================
 function ManagementTab({ type, items, search, setSearch, page, setPage, totalPages, loading, onDelete, onSuspend, currentUserRole }) {
   return (
     <div>
@@ -425,15 +578,11 @@ function ManagementTab({ type, items, search, setSearch, page, setPage, totalPag
                       <td>{item.email}</td>
                       <td>{item.role}</td>
                       <td className="flex gap-2">
-                        {/* Suspend visible only to ADMIN and not for CREATOR accounts */}
                         {currentUserRole === "ADMIN" && item.role !== "CREATOR" && onSuspend && (
                           <button className="px-2 py-1 bg-yellow-500 rounded" onClick={() => onSuspend(item.id)}>Suspend</button>
                         )}
-                        {/* Delete visible only to ADMIN and not for CREATOR accounts */}
                         {currentUserRole === "ADMIN" && item.role !== "CREATOR" ? (
-                          <button className="px-2 py-1 bg-red-600 rounded" onClick={() => onDelete(item.id)}>
-                            <FiTrash2 />
-                          </button>
+                          <button className="px-2 py-1 bg-red-600 rounded" onClick={() => onDelete(item.id)}><FiTrash2 /></button>
                         ) : (
                           <span className="text-gray-500">—</span>
                         )}
@@ -445,16 +594,9 @@ function ManagementTab({ type, items, search, setSearch, page, setPage, totalPag
                       <td>{item.Category?.name || "-"}</td>
                       <td>{item.likeCount ?? 0}</td>
                       <td>{item.commentCount ?? 0}</td>
-                      <td>
-                        {/* Blog delete only for ADMIN */}
-                        {currentUserRole === "ADMIN" ? (
-                          <button className="px-2 py-1 bg-red-600 rounded" onClick={() => onDelete(item.id)}>
-                            <FiTrash2 />
-                          </button>
-                        ) : (
-                          <span className="text-gray-500">—</span>
-                        )}
-                      </td>
+                      <td>{currentUserRole === "ADMIN" ? (
+                        <button className="px-2 py-1 bg-red-600 rounded" onClick={() => onDelete(item.id)}><FiTrash2 /></button>
+                      ) : <span className="text-gray-500">—</span>}</td>
                     </>}
                   </tr>
                 ))}
@@ -465,13 +607,7 @@ function ManagementTab({ type, items, search, setSearch, page, setPage, totalPag
           {/* Pagination */}
           <div className="flex gap-2 mt-4 flex-wrap">
             {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
-              <button
-                key={p}
-                onClick={() => setPage(p)}
-                className={`px-3 py-1 rounded ${p === page ? "bg-blue-500" : "bg-gray-700"}`}
-              >
-                {p}
-              </button>
+              <button key={p} onClick={() => setPage(p)} className={`px-3 py-1 rounded ${p === page ? "bg-blue-500" : "bg-gray-700"}`}>{p}</button>
             ))}
           </div>
         </>
