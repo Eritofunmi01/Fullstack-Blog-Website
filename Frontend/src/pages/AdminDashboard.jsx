@@ -86,7 +86,7 @@ export default function AdminDashboard() {
   const fetchUsers = async () => {
     setUserLoading(true);
     try {
-      const res = await axios.get(`${API_BASE}/users`);
+      const res = await axios.get(`https://blug-be-api.onrender.com/users`);
       let arr = Array.isArray(res.data) ? res.data : res.data.users || res.data.items || [];
       arr = arr.map(u => ({ ...u, role: (u.role || "").toUpperCase() }));
       setUsersRaw(arr);
@@ -147,7 +147,7 @@ export default function AdminDashboard() {
     const token = localStorage.getItem("token") || localStorage.getItem("authToken");
     if (!token) return alert("Unauthorized — please log in again.");
     try {
-      await axios.delete(`${API_BASE}/users/${id}`, { headers: { Authorization: `Bearer ${token}` } });
+      await axios.delete(`https://blug-be-api.onrender.com/users/${id}`, { headers: { Authorization: `Bearer ${token}` } });
       fetchUsers();
     } catch (err) { console.error(err); alert("Failed to delete user"); }
   };
