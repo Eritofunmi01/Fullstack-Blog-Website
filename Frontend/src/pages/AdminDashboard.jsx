@@ -1,4 +1,4 @@
-// AdminDashboard.jsx — Godlike Version: Responsive + Live Search + JWT Decode + Creator/Admin Protection + Suspend/Delete + Dashboard Summaries
+// AdminDashboard.jsx — Final Merged / Fixed Version
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { FiTrash2 } from "react-icons/fi";
@@ -17,7 +17,7 @@ export default function AdminDashboard() {
 
   // Dashboard
   const [range, setRange] = useState(7);
-  const [stats, setStats] = useState(null);
+  const [stats, setStats] = useState(null); // expects { timeframeDays, totals: { totalUsers, totalBlogs, totalAuthors }, newInTimeframe: {...} }
   const [subscriptions, setSubscriptions] = useState([]);
   const [loadingDashboard, setLoadingDashboard] = useState(false);
 
@@ -27,6 +27,8 @@ export default function AdminDashboard() {
   const [userPage, setUserPage] = useState(1);
   const [userSearch, setUserSearch] = useState("");
   const [userLoading, setUserLoading] = useState(false);
+  const [showCreatePopup, setShowCreatePopup] = useState(false);
+  const [newUser, setNewUser] = useState({ username: "", email: "", password: "", role: "USER" });
 
   // Blogs
   const [blogsRaw, setBlogsRaw] = useState([]);
@@ -75,12 +77,16 @@ export default function AdminDashboard() {
         axios.get(`${API_BASE}/admin/stats?days=${days}`),
         axios.get(`${API_BASE}/admin/subscriptions?days=${days}`),
       ]);
-      setStats(statsRes.data);
-      setSubscriptions(subsRes.data.subscriptions || []);
+      setStats(statsRes.data || null);
+      // subscriptions may be in subsRes.data.subscriptions or subsRes.data
+      const subs = subsRes.data?.subscriptions ?? subsRes.data ?? [];
+      setSubscriptions(Array.isArray(subs) ? subs : []);
     } catch (err) {
-      console.error(err);
+      console.error("fetchDashboard error", err);
       setError("Failed to load dashboard");
-    } finally { setLoadingDashboard(false); }
+    } finally {
+      setLoadingDashboard(false);
+    }
   };
 
   const fetchUsers = async () => {
@@ -88,60 +94,83 @@ export default function AdminDashboard() {
     try {
       const res = await axios.get(`https://blug-be-api.onrender.com/users`);
       let arr = Array.isArray(res.data) ? res.data : res.data.users || res.data.items || [];
-      arr = arr.map(u => ({ ...u, role: (u.role || "").toUpperCase() }));
+      arr = arr.map(u => ({ ...u, role: (u.role || "").toString().toUpperCase() }));
       setUsersRaw(arr);
       applyUserFilterAndPaginate(1, userSearch, arr);
     } catch (err) {
-      console.error(err);
+      console.error("fetchUsers error", err);
       setError("Failed to fetch users");
-    } finally { setUserLoading(false); }
+    } finally {
+      setUserLoading(false);
+    }
   };
 
   const fetchBlogs = async () => {
     setBlogLoading(true);
     try {
       const res = await axios.get(`${API_BASE}/blogs`);
-      const arr = Array.isArray(res.data) ? res.data : res.data.blogs || res.data.items || [];
+      const arr = Array.isArray(res.data) ? res.data : res.data.blogs || res.data.items || res.data.data || [];
       const normalized = arr.map(b => ({
         ...b,
         trending: b.trending ?? false,
         latest: b.latest ?? false,
-        likeCount: b.likes?.length ?? 0,
-        commentCount: b.comments?.length ?? 0,
+        likeCount: b.likes?.length ?? b.likeCount ?? 0,
+        commentCount: b.comments?.length ?? b.commentCount ?? 0,
         Category: b.Category || b.category || null,
       }));
       setBlogsRaw(normalized);
       applyBlogFilterAndPaginate(1, blogSearch, normalized);
     } catch (err) {
-      console.error(err);
+      console.error("fetchBlogs error", err);
       setError("Failed to fetch blogs");
-    } finally { setBlogLoading(false); }
+    } finally {
+      setBlogLoading(false);
+    }
   };
 
   // ==================== Filter & Paginate ====================
   const applyUserFilterAndPaginate = (page = 1, query = "", arr = []) => {
-    const q = (query || "").toLowerCase();
-    const filtered = q ? arr.filter(u =>
-      (u.username || "").toLowerCase().includes(q) ||
-      (u.email || "").toLowerCase().includes(q) ||
-      (u.role || "").toLowerCase().includes(q)
-    ) : arr.slice();
+    const q = (query || "").trim().toLowerCase();
+    const filtered = q
+      ? arr.filter(u =>
+          (u.username || "").toLowerCase().includes(q) ||
+          (u.email || "").toLowerCase().includes(q) ||
+          (u.role || "").toLowerCase().includes(q)
+        )
+      : arr.slice();
     const start = (page - 1) * USERS_PER_PAGE;
     setUsersData({ items: filtered.slice(start, start + USERS_PER_PAGE), total: filtered.length });
   };
 
   const applyBlogFilterAndPaginate = (page = 1, query = "", arr = []) => {
-    const q = (query || "").toLowerCase();
-    const filtered = q ? arr.filter(b =>
-      (b.title || "").toLowerCase().includes(q) ||
-      (b.Category?.name || "").toLowerCase().includes(q) ||
-      (b.author?.username || "").toLowerCase().includes(q)
-    ) : arr.slice();
+    const q = (query || "").trim().toLowerCase();
+    const filtered = q
+      ? arr.filter(b =>
+          (b.title || "").toLowerCase().includes(q) ||
+          (b.Category?.name || "").toLowerCase().includes(q) ||
+          (b.author?.username || "").toLowerCase().includes(q)
+        )
+      : arr.slice();
     const start = (page - 1) * BLOGS_PER_PAGE;
     setBlogsData({ items: filtered.slice(start, start + BLOGS_PER_PAGE), total: filtered.length });
   };
 
-  // ==================== User Actions ====================
+  // ==================== Create User (kept) ====================
+  async function handleCreateUser(e) {
+    e.preventDefault();
+    try {
+      await axios.post("https://blug-be-api.onrender.com/signup", newUser);
+      alert("User created successfully!");
+      setShowCreatePopup(false);
+      setNewUser({ username: "", email: "", password: "", role: "USER" });
+      fetchUsers();
+    } catch (err) {
+      console.error("create user failed", err);
+      alert("Failed to create user. Check input or server logs.");
+    }
+  }
+
+  // ==================== User / Blog Actions ====================
   const handleDeleteUser = async (id) => {
     if (!confirm("Delete this user?")) return;
     const token = localStorage.getItem("token") || localStorage.getItem("authToken");
@@ -149,7 +178,10 @@ export default function AdminDashboard() {
     try {
       await axios.delete(`https://blug-be-api.onrender.com/users/${id}`, { headers: { Authorization: `Bearer ${token}` } });
       fetchUsers();
-    } catch (err) { console.error(err); alert("Failed to delete user"); }
+    } catch (err) {
+      console.error("delete user failed", err);
+      alert("Failed to delete user.");
+    }
   };
 
   const handleDeleteBlog = async (id) => {
@@ -159,7 +191,10 @@ export default function AdminDashboard() {
     try {
       await axios.delete(`${API_BASE}/blog/${id}`, { headers: { Authorization: `Bearer ${token}` } });
       fetchBlogs();
-    } catch (err) { console.error(err); alert("Failed to delete blog"); }
+    } catch (err) {
+      console.error("delete blog failed", err);
+      alert("Failed to delete blog.");
+    }
   };
 
   // ==================== Effects ====================
@@ -181,7 +216,14 @@ export default function AdminDashboard() {
 
         {/* Tab Contents */}
         {activeTab === "Dashboard" && (
-          <DashboardTab range={range} setRange={setRange} loading={loadingDashboard} stats={stats} subscriptions={subscriptions} onRefresh={() => fetchDashboard(range)} />
+          <DashboardTab
+            range={range}
+            setRange={setRange}
+            loading={loadingDashboard}
+            stats={stats}
+            subscriptions={subscriptions}
+            onRefresh={() => fetchDashboard(range)}
+          />
         )}
 
         {activeTab === "User Management" && (
@@ -211,11 +253,33 @@ export default function AdminDashboard() {
             totalPages={totalBlogPages}
             loading={blogLoading}
             onDelete={handleDeleteBlog}
+            currentUserRole={currentUserRole}
           />
         )}
 
         {error && <p className="mt-4 text-red-500">{error}</p>}
       </div>
+
+      {/* CREATE USER POPUP */}
+      {showCreatePopup && (
+        <div className="fixed inset-0 bg-black/70 flex justify-center items-center z-50">
+          <form onSubmit={handleCreateUser} className="bg-gray-950 p-6 rounded w-80 flex flex-col gap-3">
+            <h2 className="text-lg font-semibold">Create New User</h2>
+            <input placeholder="Username" className="p-2 rounded bg-gray-800" value={newUser.username} onChange={e => setNewUser({ ...newUser, username: e.target.value })} required />
+            <input type="email" placeholder="Email" className="p-2 rounded bg-gray-800" value={newUser.email} onChange={e => setNewUser({ ...newUser, email: e.target.value })} required />
+            <input type="password" placeholder="Password" className="p-2 rounded bg-gray-800" value={newUser.password} onChange={e => setNewUser({ ...newUser, password: e.target.value })} required />
+            <select className="p-2 rounded bg-gray-800" value={newUser.role} onChange={e => setNewUser({ ...newUser, role: e.target.value })}>
+              <option value="USER">USER</option>
+              <option value="ADMIN">ADMIN</option>
+              <option value="CREATOR">CREATOR</option>
+            </select>
+            <div className="flex justify-end gap-2 mt-2">
+              <button type="button" className="bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded" onClick={() => setShowCreatePopup(false)}>Cancel</button>
+              <button type="submit" className="bg-green-600 hover:bg-green-700 px-3 py-1 rounded">Create</button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }
@@ -239,11 +303,15 @@ function Header({ tabs, activeTab, setActiveTab }) {
 
 // ==================== DashboardTab Component ====================
 function DashboardTab({ range, setRange, loading, stats, subscriptions, onRefresh }) {
+  // stats expected shape: { timeframeDays, totals: { totalUsers, totalBlogs, totalAuthors }, newInTimeframe: {...} }
+  const totals = stats?.totals ?? {};
+  const subs = Array.isArray(subscriptions) ? subscriptions : [];
+
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
         <div>
-          <span>Filter range: </span>
+          <span className="mr-2">Filter range:</span>
           {[7, 30, 100].map(d => (
             <button key={d} onClick={() => setRange(d)} className={`mx-1 px-2 py-1 rounded ${range === d ? "bg-blue-500" : "bg-gray-700"}`}>{d} days</button>
           ))}
@@ -254,35 +322,49 @@ function DashboardTab({ range, setRange, loading, stats, subscriptions, onRefres
       {loading ? <p>Loading...</p> : (
         <>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-            <StatCard label="Total Users" value={stats?.totalUsers || 0} />
-            <StatCard label="Total Blogs" value={stats?.totalBlogs || 0} />
-            <StatCard label="Total Authors" value={stats?.totalAuthors || 0} />
-            <StatCard label="Subscriptions" value={subscriptions.length} />
+            <StatCard label="Total Users" value={totals.totalUsers ?? 0} />
+            <StatCard label="Total Blogs" value={totals.totalBlogs ?? 0} />
+            <StatCard label="Total Authors" value={totals.totalAuthors ?? 0} />
+            <StatCard label="New Users (range)" value={stats?.newInTimeframe?.newUsers ?? "-"} />
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm text-left">
-              <thead className="bg-gray-800">
-                <tr>
-                  <th className="px-3 py-2">Username</th>
-                  <th>Email</th>
-                  <th>Amount</th>
-                  <th>Date</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {subscriptions.map(s => (
-                  <tr key={s.id} className="border-b border-gray-700">
-                    <td className="px-3 py-2">{s.username}</td>
-                    <td>{s.email}</td>
-                    <td>{s.amount}</td>
-                    <td>{new Date(s.date).toLocaleDateString()}</td>
-                    <td>{s.active ? "Active" : "Expired"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="mt-4">
+            <h4 className="mb-2 text-lg">Recent Subscriptions</h4>
+            {subs.length === 0 ? (
+              <div className="p-4 bg-gray-850 rounded text-gray-400">No subscriptions in this period</div>
+            ) : (
+              <div className="overflow-x-auto bg-gray-950/30 rounded">
+                <table className="min-w-full text-sm text-left">
+                  <thead className="bg-gray-800">
+                    <tr>
+                      <th className="px-3 py-2">User</th>
+                      <th>Amount</th>
+                      <th>Plan</th>
+                      <th>Date</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {subs.map((s) => {
+                      const username = s.username ?? s.user?.username ?? "-";
+                      const amount = s.amountPaid ?? s.amount ?? s.price ?? "-";
+                      const plan = s.plan ?? s.subscriptionPlan ?? "-";
+                      const date = s.createdAt ?? s.date ?? s.created_at ?? null;
+                      const status = typeof s.isActive === "boolean" ? (s.isActive ? "Active" : "Expired") : (s.status ?? "-");
+                      return (
+                        <tr key={s.id ?? `${username}-${date}`} className="border-b border-gray-700">
+                          <td className="px-3 py-2">{username}</td>
+                          <td>₦{amount}</td>
+                          <td>{plan}</td>
+                          <td>{date ? new Date(date).toLocaleDateString() : "-"}</td>
+                          <td>{status}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </>
       )}
@@ -343,24 +425,35 @@ function ManagementTab({ type, items, search, setSearch, page, setPage, totalPag
                       <td>{item.email}</td>
                       <td>{item.role}</td>
                       <td className="flex gap-2">
+                        {/* Suspend visible only to ADMIN and not for CREATOR accounts */}
                         {currentUserRole === "ADMIN" && item.role !== "CREATOR" && onSuspend && (
                           <button className="px-2 py-1 bg-yellow-500 rounded" onClick={() => onSuspend(item.id)}>Suspend</button>
                         )}
-                        <button className="px-2 py-1 bg-red-600 rounded" onClick={() => onDelete(item.id)}>
-                          <FiTrash2 />
-                        </button>
+                        {/* Delete visible only to ADMIN and not for CREATOR accounts */}
+                        {currentUserRole === "ADMIN" && item.role !== "CREATOR" ? (
+                          <button className="px-2 py-1 bg-red-600 rounded" onClick={() => onDelete(item.id)}>
+                            <FiTrash2 />
+                          </button>
+                        ) : (
+                          <span className="text-gray-500">—</span>
+                        )}
                       </td>
                     </>}
                     {type === "blogs" && <>
                       <td className="px-3 py-2">{item.title}</td>
                       <td>{item.author?.username || "-"}</td>
                       <td>{item.Category?.name || "-"}</td>
-                      <td>{item.likeCount}</td>
-                      <td>{item.commentCount}</td>
+                      <td>{item.likeCount ?? 0}</td>
+                      <td>{item.commentCount ?? 0}</td>
                       <td>
-                        <button className="px-2 py-1 bg-red-600 rounded" onClick={() => onDelete(item.id)}>
-                          <FiTrash2 />
-                        </button>
+                        {/* Blog delete only for ADMIN */}
+                        {currentUserRole === "ADMIN" ? (
+                          <button className="px-2 py-1 bg-red-600 rounded" onClick={() => onDelete(item.id)}>
+                            <FiTrash2 />
+                          </button>
+                        ) : (
+                          <span className="text-gray-500">—</span>
+                        )}
                       </td>
                     </>}
                   </tr>
