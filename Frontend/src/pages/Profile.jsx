@@ -312,7 +312,6 @@ export default function ProfilePage() {
                   Go to Dashboard
                 </button>
               )}
-
               {isAdmin && !isOwner && (
                 <button
                   onClick={handleSuspendUser}
