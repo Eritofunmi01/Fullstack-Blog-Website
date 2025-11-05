@@ -682,6 +682,8 @@ function ManagementTab({
   loading,
   onDelete,
   onSuspend,
+  onPromote,
+  onDemote,
   currentUserRole,
 }) {
   return (
@@ -733,7 +735,7 @@ function ManagementTab({
                         <td>{item.email}</td>
                         <td>{item.role}</td>
                         <td className="flex gap-2 items-center">
-                          {/* Suspend Button */}
+                          {/* Suspend */}
                           {(currentUserRole === "ADMIN" ||
                             currentUserRole === "CREATOR") &&
                             item.role !== "CREATOR" &&
@@ -746,7 +748,7 @@ function ManagementTab({
                               </button>
                             )}
 
-                          {/* Delete Button */}
+                          {/* Delete */}
                           {(currentUserRole === "ADMIN" ||
                             currentUserRole === "CREATOR") &&
                           item.role !== "CREATOR" ? (
@@ -760,7 +762,7 @@ function ManagementTab({
                             <span className="text-gray-500">—</span>
                           )}
 
-                          {/* Promote / Demote Button (only visible to CREATOR) */}
+                          {/* Promote / Demote (CREATOR only) */}
                           {currentUserRole === "CREATOR" && (
                             <>
                               {item.role !== "CREATOR" && (
@@ -789,6 +791,7 @@ function ManagementTab({
                         </td>
                       </>
                     )}
+
                     {type === "blogs" && (
                       <>
                         <td className="px-3 py-2">{item.title}</td>
@@ -797,15 +800,14 @@ function ManagementTab({
                         <td>{item.likeCount ?? 0}</td>
                         <td>{item.commentCount ?? 0}</td>
                         <td>
-                          {currentUserRole === "ADMIN" || "CREATOR" ? (
+                          {(currentUserRole === "ADMIN" ||
+                            currentUserRole === "CREATOR") && (
                             <button
-                              className="px-2 py-1 bg-red-600 rounded"
+                              className="px-2 py-1 bg-red-600 rounded text-white"
                               onClick={() => onDelete(item.id)}
                             >
                               <FiTrash2 />
                             </button>
-                          ) : (
-                            <span className="text-gray-500">—</span>
                           )}
                         </td>
                       </>
@@ -817,21 +819,28 @@ function ManagementTab({
           </div>
 
           {/* Pagination */}
-          <div className="flex gap-2 mt-4 flex-wrap">
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-              <button
-                key={p}
-                onClick={() => setPage(p)}
-                className={`px-3 py-1 rounded ${
-                  p === page ? "bg-blue-500" : "bg-gray-700"
-                }`}
-              >
-                {p}
-              </button>
-            ))}
+          <div className="flex justify-center items-center mt-4 gap-2">
+            <button
+              disabled={page <= 1}
+              onClick={() => setPage(page - 1)}
+              className="px-3 py-1 bg-gray-700 rounded disabled:opacity-50"
+            >
+              Prev
+            </button>
+            <span>
+              Page {page} of {totalPages}
+            </span>
+            <button
+              disabled={page >= totalPages}
+              onClick={() => setPage(page + 1)}
+              className="px-3 py-1 bg-gray-700 rounded disabled:opacity-50"
+            >
+              Next
+            </button>
           </div>
         </>
       )}
     </div>
   );
 }
+
