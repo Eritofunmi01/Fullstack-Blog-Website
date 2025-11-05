@@ -49,52 +49,51 @@ export default function AdminDashboard() {
   const [showPassword, setShowPassword] = useState(false);
 
   const [actionLoading, setActionLoading] = useState(false);
-const [popup, setPopup] = useState(null);
+  const [popup, setPopup] = useState(null);
 
   // Auth
   const [currentUserRole, setCurrentUserRole] = useState(null);
   const [currentUserId, setCurrentUserId] = useState(null);
 
   /// ✅ Promote to Admin
-const handlePromote = async (id) => {
-  try {
-    setActionLoading(true);
-    const res = await axios.put(
-      `${API_BASE}/make-admin/${id}`,
-      {},
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
-    alert(res.data.message || "User promoted to Admin.");
-    window.location.reload();
-  } catch (error) {
-    console.error("Promotion failed:", error);
-    alert("Failed to promote user.");
-  } finally {
-    setActionLoading(false);
-    setPopup(null);
-  }
-};
+  const handlePromote = async (id) => {
+    try {
+      setActionLoading(true);
+      const res = await axios.put(
+        `${API_BASE}/make-admin/${id}`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      alert(res.data.message || "User promoted to Admin.");
+      window.location.reload();
+    } catch (error) {
+      console.error("Promotion failed:", error);
+      alert("Failed to promote user.");
+    } finally {
+      setActionLoading(false);
+      setPopup(null);
+    }
+  };
 
-// ✅ Demote to User
-const handleDemote = async (id) => {
-  try {
-    setActionLoading(true);
-    const res = await axios.post(
-      `${API_BASE}/fix-admin-roles`,
-      { id },
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
-    alert(res.data.message || "User demoted to User.");
-    window.location.reload();
-  } catch (error) {
-    console.error("Demotion failed:", error);
-    alert("Failed to demote user.");
-  } finally {
-    setActionLoading(false);
-    setPopup(null);
-  }
-};
-
+  // ✅ Demote to User
+  const handleDemote = async (id) => {
+    try {
+      setActionLoading(true);
+      const res = await axios.post(
+        `${API_BASE}/fix-admin-roles`,
+        { id },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      alert(res.data.message || "User demoted to User.");
+      window.location.reload();
+    } catch (error) {
+      console.error("Demotion failed:", error);
+      alert("Failed to demote user.");
+    } finally {
+      setActionLoading(false);
+      setPopup(null);
+    }
+  };
 
   // API base (use paths already used elsewhere in your app)
   const API_BASE = "https://blug-be-api.onrender.com/api";
@@ -374,22 +373,21 @@ const handleDemote = async (id) => {
             </div>
 
             {/* existing management table (unchanged) */}
-<ManagementTab
-  type="users"
-  items={usersData.items}
-  search={userSearch}
-  setSearch={setUserSearch}
-  page={userPage}
-  setPage={setUserPage}
-  totalPages={totalUserPages}
-  loading={userLoading}
-  onDelete={handleDeleteUser}
-  onSuspend={(id) => navigate(`/suspend/${id}`)}
-  onPromote={handlePromote}
-  onDemote={handleDemote}
-  currentUserRole={currentUserRole}
-/>
-
+            <ManagementTab
+              type="users"
+              items={usersData.items}
+              search={userSearch}
+              setSearch={setUserSearch}
+              page={userPage}
+              setPage={setUserPage}
+              totalPages={totalUserPages}
+              loading={userLoading}
+              onDelete={handleDeleteUser}
+              onSuspend={(id) => navigate(`/suspend/${id}`)}
+              onPromote={handlePromote}
+              onDemote={handleDemote}
+              currentUserRole={currentUserRole}
+            />
 
             {/* Create user modal (single, consistent) */}
             {showCreatePopup && (
@@ -763,30 +761,29 @@ function ManagementTab({
 
                           {/* Promote / Demote Button (only visible to CREATOR) */}
                           {currentUserRole === "CREATOR" && (
-                           <>
-  {item.role !== "CREATOR" && (
-    <>
-      {item.role === "ADMIN" ? (
-        <button
-          className="px-2 py-1 bg-red-500 rounded text-white"
-          onClick={() => onDemote(item.id)}
-          title="Demote User"
-        >
-          <FaLevelDownAlt />
-        </button>
-      ) : (
-        <button
-          className="px-2 py-1 bg-green-500 rounded text-white"
-          onClick={() => onPromote(item.id)}
-          title="Promote User"
-        >
-          <FaLevelUpAlt />
-        </button>
-      )}
-    </>
-  )}
-</>
-
+                            <>
+                              {item.role !== "CREATOR" && (
+                                <>
+                                  {item.role === "ADMIN" ? (
+                                    <button
+                                      className="px-2 py-1 bg-red-500 rounded text-white"
+                                      onClick={() => onDemote(item.id)}
+                                      title="Demote User"
+                                    >
+                                      <FaLevelDownAlt />
+                                    </button>
+                                  ) : (
+                                    <button
+                                      className="px-2 py-1 bg-green-500 rounded text-white"
+                                      onClick={() => onPromote(item.id)}
+                                      title="Promote User"
+                                    >
+                                      <FaLevelUpAlt />
+                                    </button>
+                                  )}
+                                </>
+                              )}
+                            </>
                           )}
                         </td>
                       </>
