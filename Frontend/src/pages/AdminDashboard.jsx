@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { FiTrash2 } from "react-icons/fi";
+import { FaLevelUpAlt, FaLevelDownAlt } from "react-icons/fa";
 import { useNavigate } from "react-router";
 
 const TABS = ["Dashboard", "User Management", "Blog Management"];
@@ -37,15 +38,63 @@ export default function AdminDashboard() {
 
   // Create user modal state (single consistent state)
   const [showCreatePopup, setShowCreatePopup] = useState(false);
-  const [newUser, setNewUser] = useState({ username: "", email: "", password: "", role: "USER" });
+  const [newUser, setNewUser] = useState({
+    username: "",
+    email: "",
+    password: "",
+    role: "USER",
+  });
   const [createMessage, setCreateMessage] = useState("");
   const [creatingUser, setCreatingUser] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
+  const [actionLoading, setActionLoading] = useState(false);
+const [popup, setPopup] = useState(null);
 
   // Auth
   const [currentUserRole, setCurrentUserRole] = useState(null);
   const [currentUserId, setCurrentUserId] = useState(null);
+
+  /// ✅ Promote to Admin
+const handlePromote = async (id) => {
+  try {
+    setActionLoading(true);
+    const res = await axios.put(
+      `${API_BASE}/make-admin/${id}`,
+      {},
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    alert(res.data.message || "User promoted to Admin.");
+    window.location.reload();
+  } catch (error) {
+    console.error("Promotion failed:", error);
+    alert("Failed to promote user.");
+  } finally {
+    setActionLoading(false);
+    setPopup(null);
+  }
+};
+
+// ✅ Demote to User
+const handleDemote = async (id) => {
+  try {
+    setActionLoading(true);
+    const res = await axios.post(
+      `${API_BASE}/fix-admin-roles`,
+      { id },
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    alert(res.data.message || "User demoted to User.");
+    window.location.reload();
+  } catch (error) {
+    console.error("Demotion failed:", error);
+    alert("Failed to demote user.");
+  } finally {
+    setActionLoading(false);
+    setPopup(null);
+  }
+};
+
 
   // API base (use paths already used elsewhere in your app)
   const API_BASE = "https://blug-be-api.onrender.com/api";
@@ -59,7 +108,10 @@ export default function AdminDashboard() {
       if (parts.length < 2) return null;
       const payload = parts[1];
       const base64 = payload.replace(/-/g, "+").replace(/_/g, "/");
-      const padded = base64.padEnd(base64.length + (4 - (base64.length % 4)) % 4, "=");
+      const padded = base64.padEnd(
+        base64.length + ((4 - (base64.length % 4)) % 4),
+        "="
+      );
       return JSON.parse(atob(padded));
     } catch (e) {
       console.warn("JWT decode failed", e);
@@ -68,10 +120,13 @@ export default function AdminDashboard() {
   };
 
   useEffect(() => {
-    const token = localStorage.getItem("token") || localStorage.getItem("authToken");
+    const token =
+      localStorage.getItem("token") || localStorage.getItem("authToken");
     const payload = decodeJwt(token);
     if (payload) {
-      const role = (payload.role || payload.user?.role || "").toString().toUpperCase();
+      const role = (payload.role || payload.user?.role || "")
+        .toString()
+        .toUpperCase();
       const id = payload.id || payload.user?.id || payload.sub || null;
       setCurrentUserRole(role || null);
       setCurrentUserId(id ?? null);
@@ -104,8 +159,13 @@ export default function AdminDashboard() {
     setUserLoading(true);
     try {
       const res = await axios.get(`https://blug-be-api.onrender.com/users`);
-      let arr = Array.isArray(res.data) ? res.data : res.data.users || res.data.items || [];
-      arr = arr.map((u) => ({ ...u, role: (u.role || "").toString().toUpperCase() }));
+      let arr = Array.isArray(res.data)
+        ? res.data
+        : res.data.users || res.data.items || [];
+      arr = arr.map((u) => ({
+        ...u,
+        role: (u.role || "").toString().toUpperCase(),
+      }));
       setUsersRaw(arr);
       applyUserFilterAndPaginate(1, userSearch, arr);
     } catch (err) {
@@ -120,7 +180,9 @@ export default function AdminDashboard() {
     setBlogLoading(true);
     try {
       const res = await axios.get(`${API_BASE}/blogs`);
-      const arr = Array.isArray(res.data) ? res.data : res.data.blogs || res.data.items || res.data.data || [];
+      const arr = Array.isArray(res.data)
+        ? res.data
+        : res.data.blogs || res.data.items || res.data.data || [];
       const normalized = arr.map((b) => ({
         ...b,
         trending: b.trending ?? false,
@@ -151,7 +213,10 @@ export default function AdminDashboard() {
         )
       : arr.slice();
     const start = (page - 1) * USERS_PER_PAGE;
-    setUsersData({ items: filtered.slice(start, start + USERS_PER_PAGE), total: filtered.length });
+    setUsersData({
+      items: filtered.slice(start, start + USERS_PER_PAGE),
+      total: filtered.length,
+    });
   };
 
   const applyBlogFilterAndPaginate = (page = 1, query = "", arr = []) => {
@@ -165,7 +230,10 @@ export default function AdminDashboard() {
         )
       : arr.slice();
     const start = (page - 1) * BLOGS_PER_PAGE;
-    setBlogsData({ items: filtered.slice(start, start + BLOGS_PER_PAGE), total: filtered.length });
+    setBlogsData({
+      items: filtered.slice(start, start + BLOGS_PER_PAGE),
+      total: filtered.length,
+    });
   };
 
   // ----------------- Create User -----------------
@@ -195,7 +263,9 @@ export default function AdminDashboard() {
       fetchUsers();
     } catch (err) {
       console.error("create user failed", err);
-      const msg = err.response?.data?.message || "Failed to create user. Check server logs.";
+      const msg =
+        err.response?.data?.message ||
+        "Failed to create user. Check server logs.";
       setCreateMessage(`❌ ${msg}`);
     } finally {
       setCreatingUser(false);
@@ -205,10 +275,13 @@ export default function AdminDashboard() {
   // ----------------- Delete / Suspend -----------------
   const handleDeleteUser = async (id) => {
     if (!confirm("Delete this user?")) return;
-    const token = localStorage.getItem("token") || localStorage.getItem("authToken");
+    const token =
+      localStorage.getItem("token") || localStorage.getItem("authToken");
     if (!token) return alert("Unauthorized — please log in again.");
     try {
-      await axios.delete(`https://blug-be-api.onrender.com/users/${id}`, { headers: { Authorization: `Bearer ${token}` } });
+      await axios.delete(`https://blug-be-api.onrender.com/users/${id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       fetchUsers();
     } catch (err) {
       console.error("delete user failed", err);
@@ -218,10 +291,13 @@ export default function AdminDashboard() {
 
   const handleDeleteBlog = async (id) => {
     if (!confirm("Delete this blog?")) return;
-    const token = localStorage.getItem("token") || localStorage.getItem("authToken");
+    const token =
+      localStorage.getItem("token") || localStorage.getItem("authToken");
     if (!token) return alert("Unauthorized — please log in again.");
     try {
-      await axios.delete(`${API_BASE}/blog/${id}`, { headers: { Authorization: `Bearer ${token}` } });
+      await axios.delete(`${API_BASE}/blog/${id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       fetchBlogs();
     } catch (err) {
       console.error("delete blog failed", err);
@@ -251,8 +327,14 @@ export default function AdminDashboard() {
   }, [blogPage, blogSearch, blogsRaw]);
 
   // ----------------- Render -----------------
-  const totalUserPages = Math.max(1, Math.ceil(usersData.total / USERS_PER_PAGE));
-  const totalBlogPages = Math.max(1, Math.ceil(blogsData.total / BLOGS_PER_PAGE));
+  const totalUserPages = Math.max(
+    1,
+    Math.ceil(usersData.total / USERS_PER_PAGE)
+  );
+  const totalBlogPages = Math.max(
+    1,
+    Math.ceil(blogsData.total / BLOGS_PER_PAGE)
+  );
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-4 md:p-6">
@@ -277,36 +359,45 @@ export default function AdminDashboard() {
             {/* Top row — title + create button (ADMIN only) */}
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold">User Management</h3>
-              {currentUserRole === "ADMIN" && (
-                <button
-                  onClick={() => { setCreateMessage(""); setShowCreatePopup(true); }}
-                  className="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded text-sm"
-                >
-                  + Create User
-                </button>
-              )}
+              {currentUserRole === "ADMIN" ||
+                ("CREATOR" && (
+                  <button
+                    onClick={() => {
+                      setCreateMessage("");
+                      setShowCreatePopup(true);
+                    }}
+                    className="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded text-sm"
+                  >
+                    + Create User
+                  </button>
+                ))}
             </div>
 
             {/* existing management table (unchanged) */}
-            <ManagementTab
-              type="users"
-              items={usersData.items}
-              search={userSearch}
-              setSearch={setUserSearch}
-              page={userPage}
-              setPage={setUserPage}
-              totalPages={totalUserPages}
-              loading={userLoading}
-              onDelete={handleDeleteUser}
-              onSuspend={(id) => navigate(`/suspend/${id}`)}
-              currentUserRole={currentUserRole}
-            />
+<ManagementTab
+  type="users"
+  items={usersData.items}
+  search={userSearch}
+  setSearch={setUserSearch}
+  page={userPage}
+  setPage={setUserPage}
+  totalPages={totalUserPages}
+  loading={userLoading}
+  onDelete={handleDeleteUser}
+  onSuspend={(id) => navigate(`/suspend/${id}`)}
+  onPromote={handlePromote}
+  onDemote={handleDemote}
+  currentUserRole={currentUserRole}
+/>
+
 
             {/* Create user modal (single, consistent) */}
             {showCreatePopup && (
               <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
                 <div className="bg-gray-900 w-full max-w-md p-6 rounded-lg shadow-lg">
-                  <h4 className="text-lg mb-4 font-semibold">Create New User</h4>
+                  <h4 className="text-lg mb-4 font-semibold">
+                    Create New User
+                  </h4>
 
                   <form onSubmit={handleCreateUser} className="space-y-3">
                     <input
@@ -314,7 +405,9 @@ export default function AdminDashboard() {
                       placeholder="Username"
                       className="w-full px-3 py-2 bg-gray-800 rounded"
                       value={newUser.username}
-                      onChange={(e) => setNewUser({ ...newUser, username: e.target.value })}
+                      onChange={(e) =>
+                        setNewUser({ ...newUser, username: e.target.value })
+                      }
                       required
                     />
 
@@ -323,69 +416,74 @@ export default function AdminDashboard() {
                       placeholder="Email"
                       className="w-full px-3 py-2 bg-gray-800 rounded"
                       value={newUser.email}
-                      onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+                      onChange={(e) =>
+                        setNewUser({ ...newUser, email: e.target.value })
+                      }
                       required
                     />
 
-<div className="relative">
-  <input
-    type={showPassword ? "text" : "password"}
-    placeholder="Password"
-    className="w-full px-3 py-2 bg-gray-800 rounded pr-10"
-    value={newUser.password}
-    onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
-    required
-  />
-  <button
-    type="button"
-    onClick={() => setShowPassword(!showPassword)}
-    className="absolute inset-y-0 right-3 flex items-center text-gray-400 hover:text-gray-200"
-  >
-    {showPassword ? (
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        fill="none"
-        viewBox="0 0 24 24"
-        strokeWidth={1.5}
-        stroke="currentColor"
-        className="w-5 h-5"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M2.458 12C3.732 7.943 7.523 5 12 5c4.477 0 8.268 2.943 9.542 7-1.274 4.057-5.065 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-        />
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-        />
-      </svg>
-    ) : (
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        fill="none"
-        viewBox="0 0 24 24"
-        strokeWidth={1.5}
-        stroke="currentColor"
-        className="w-5 h-5"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M3.98 8.223A10.477 10.477 0 001.934 12C3.5 16.018 7.36 19 12 19c1.893 0 3.678-.44 5.247-1.223M9.88 9.88a3 3 0 104.24 4.24M15 15l3.586 3.586M6 6l12 12"
-        />
-      </svg>
-    )}
-  </button>
-</div>
-
+                    <div className="relative">
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        placeholder="Password"
+                        className="w-full px-3 py-2 bg-gray-800 rounded pr-10"
+                        value={newUser.password}
+                        onChange={(e) =>
+                          setNewUser({ ...newUser, password: e.target.value })
+                        }
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute inset-y-0 right-3 flex items-center text-gray-400 hover:text-gray-200"
+                      >
+                        {showPassword ? (
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            strokeWidth={1.5}
+                            stroke="currentColor"
+                            className="w-5 h-5"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M2.458 12C3.732 7.943 7.523 5 12 5c4.477 0 8.268 2.943 9.542 7-1.274 4.057-5.065 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                            />
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                            />
+                          </svg>
+                        ) : (
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            strokeWidth={1.5}
+                            stroke="currentColor"
+                            className="w-5 h-5"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M3.98 8.223A10.477 10.477 0 001.934 12C3.5 16.018 7.36 19 12 19c1.893 0 3.678-.44 5.247-1.223M9.88 9.88a3 3 0 104.24 4.24M15 15l3.586 3.586M6 6l12 12"
+                            />
+                          </svg>
+                        )}
+                      </button>
+                    </div>
 
                     {/* Role selector kept but note: your current signup controller creates USER regardless */}
                     <select
                       className="w-full px-3 py-2 bg-gray-800 rounded"
                       value={newUser.role}
-                      onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}
+                      onChange={(e) =>
+                        setNewUser({ ...newUser, role: e.target.value })
+                      }
                     >
                       <option value="USER">USER</option>
                       <option value="ADMIN">ADMIN</option>
@@ -410,7 +508,9 @@ export default function AdminDashboard() {
                   </form>
 
                   {createMessage && (
-                    <p className="mt-3 text-sm text-center text-gray-300">{createMessage}</p>
+                    <p className="mt-3 text-sm text-center text-gray-300">
+                      {createMessage}
+                    </p>
                   )}
                 </div>
               </div>
@@ -448,7 +548,9 @@ function Header({ tabs, activeTab, setActiveTab }) {
         <button
           key={t}
           onClick={() => setActiveTab(t)}
-          className={`px-4 py-2 rounded ${activeTab === t ? "bg-blue-600" : "bg-gray-700 hover:bg-gray-600"}`}
+          className={`px-4 py-2 rounded ${
+            activeTab === t ? "bg-blue-600" : "bg-gray-700 hover:bg-gray-600"
+          }`}
         >
           {t}
         </button>
@@ -457,7 +559,14 @@ function Header({ tabs, activeTab, setActiveTab }) {
   );
 }
 
-function DashboardTab({ range, setRange, loading, stats, subscriptions, onRefresh }) {
+function DashboardTab({
+  range,
+  setRange,
+  loading,
+  stats,
+  subscriptions,
+  onRefresh,
+}) {
   const totals = stats?.totals ?? stats ?? {};
   const subs = Array.isArray(subscriptions) ? subscriptions : [];
 
@@ -467,25 +576,42 @@ function DashboardTab({ range, setRange, loading, stats, subscriptions, onRefres
         <div>
           <span className="mr-2">Filter range:</span>
           {[7, 30, 100].map((d) => (
-            <button key={d} onClick={() => setRange(d)} className={`mx-1 px-2 py-1 rounded ${range === d ? "bg-blue-500" : "bg-gray-700"}`}>{d} days</button>
+            <button
+              key={d}
+              onClick={() => setRange(d)}
+              className={`mx-1 px-2 py-1 rounded ${
+                range === d ? "bg-blue-500" : "bg-gray-700"
+              }`}
+            >
+              {d} days
+            </button>
           ))}
         </div>
-        <button onClick={onRefresh} className="px-3 py-1 bg-green-600 rounded">Refresh</button>
+        <button onClick={onRefresh} className="px-3 py-1 bg-green-600 rounded">
+          Refresh
+        </button>
       </div>
 
-      {loading ? <p>Loading...</p> : (
+      {loading ? (
+        <p>Loading...</p>
+      ) : (
         <>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
             <StatCard label="Total Users" value={totals?.totalUsers ?? 0} />
             <StatCard label="Total Blogs" value={totals?.totalBlogs ?? 0} />
             <StatCard label="Total Authors" value={totals?.totalAuthors ?? 0} />
-            <StatCard label="New Users (range)" value={stats?.newInTimeframe?.newUsers ?? "-"} />
+            <StatCard
+              label="New Users (range)"
+              value={stats?.newInTimeframe?.newUsers ?? "-"}
+            />
           </div>
 
           <div className="mt-4">
             <h4 className="mb-2 text-lg">Recent Subscriptions</h4>
             {subs.length === 0 ? (
-              <div className="p-4 bg-gray-850 rounded text-gray-400">No subscriptions in this period</div>
+              <div className="p-4 bg-gray-850 rounded text-gray-400">
+                No subscriptions in this period
+              </div>
             ) : (
               <div className="overflow-x-auto bg-gray-950/30 rounded">
                 <table className="min-w-full text-sm text-left">
@@ -503,14 +629,25 @@ function DashboardTab({ range, setRange, loading, stats, subscriptions, onRefres
                       const username = s.username ?? s.user?.username ?? "-";
                       const amount = s.amountPaid ?? s.amount ?? s.price ?? "-";
                       const plan = s.plan ?? s.subscriptionPlan ?? "-";
-                      const date = s.createdAt ?? s.date ?? s.created_at ?? null;
-                      const status = typeof s.isActive === "boolean" ? (s.isActive ? "Active" : "Expired") : (s.status ?? "-");
+                      const date =
+                        s.createdAt ?? s.date ?? s.created_at ?? null;
+                      const status =
+                        typeof s.isActive === "boolean"
+                          ? s.isActive
+                            ? "Active"
+                            : "Expired"
+                          : s.status ?? "-";
                       return (
-                        <tr key={s.id ?? `${username}-${date}`} className="border-b border-gray-700">
+                        <tr
+                          key={s.id ?? `${username}-${date}`}
+                          className="border-b border-gray-700"
+                        >
                           <td className="px-3 py-2">{username}</td>
                           <td>₦{amount}</td>
                           <td>{plan}</td>
-                          <td>{date ? new Date(date).toLocaleDateString() : "-"}</td>
+                          <td>
+                            {date ? new Date(date).toLocaleDateString() : "-"}
+                          </td>
                           <td>{status}</td>
                         </tr>
                       );
@@ -535,7 +672,19 @@ function StatCard({ label, value }) {
   );
 }
 
-function ManagementTab({ type, items, search, setSearch, page, setPage, totalPages, loading, onDelete, onSuspend, currentUserRole }) {
+function ManagementTab({
+  type,
+  items,
+  search,
+  setSearch,
+  page,
+  setPage,
+  totalPages,
+  loading,
+  onDelete,
+  onSuspend,
+  currentUserRole,
+}) {
   return (
     <div>
       <div className="flex items-center gap-2 mb-4">
@@ -548,56 +697,121 @@ function ManagementTab({ type, items, search, setSearch, page, setPage, totalPag
         />
       </div>
 
-      {loading ? <p>Loading...</p> : (
+      {loading ? (
+        <p>Loading...</p>
+      ) : (
         <>
           <div className="overflow-x-auto">
             <table className="min-w-full text-left text-sm">
               <thead className="bg-gray-800">
                 <tr>
-                  {type === "users" && <>
-                    <th className="px-3 py-2">Username</th>
-                    <th>Email</th>
-                    <th>Role</th>
-                    <th>Actions</th>
-                  </>}
-                  {type === "blogs" && <>
-                    <th className="px-3 py-2">Title</th>
-                    <th>Author</th>
-                    <th>Category</th>
-                    <th>Likes</th>
-                    <th>Comments</th>
-                    <th>Actions</th>
-                  </>}
+                  {type === "users" && (
+                    <>
+                      <th className="px-3 py-2">Username</th>
+                      <th>Email</th>
+                      <th>Role</th>
+                      <th>Actions</th>
+                    </>
+                  )}
+                  {type === "blogs" && (
+                    <>
+                      <th className="px-3 py-2">Title</th>
+                      <th>Author</th>
+                      <th>Category</th>
+                      <th>Likes</th>
+                      <th>Comments</th>
+                      <th>Actions</th>
+                    </>
+                  )}
                 </tr>
               </thead>
               <tbody>
-                {items.map(item => (
+                {items.map((item) => (
                   <tr key={item.id} className="border-b border-gray-700">
-                    {type === "users" && <>
-                      <td className="px-3 py-2">{item.username}</td>
-                      <td>{item.email}</td>
-                      <td>{item.role}</td>
-                      <td className="flex gap-2">
-                        {currentUserRole === "ADMIN" && item.role !== "CREATOR" && onSuspend && (
-                          <button className="px-2 py-1 bg-yellow-500 rounded" onClick={() => onSuspend(item.id)}>Suspend</button>
-                        )}
-                        {currentUserRole === "ADMIN" && item.role !== "CREATOR" ? (
-                          <button className="px-2 py-1 bg-red-600 rounded" onClick={() => onDelete(item.id)}><FiTrash2 /></button>
-                        ) : (
-                          <span className="text-gray-500">—</span>
-                        )}
-                      </td>
-                    </>}
-                    {type === "blogs" && <>
-                      <td className="px-3 py-2">{item.title}</td>
-                      <td>{item.author?.username || "-"}</td>
-                      <td>{item.Category?.name || "-"}</td>
-                      <td>{item.likeCount ?? 0}</td>
-                      <td>{item.commentCount ?? 0}</td>
-                      <td>{currentUserRole === "ADMIN" ? (
-                        <button className="px-2 py-1 bg-red-600 rounded" onClick={() => onDelete(item.id)}><FiTrash2 /></button>
-                      ) : <span className="text-gray-500">—</span>}</td>
-                    </>}
+                    {type === "users" && (
+                      <>
+                        <td className="px-3 py-2">{item.username}</td>
+                        <td>{item.email}</td>
+                        <td>{item.role}</td>
+                        <td className="flex gap-2 items-center">
+                          {/* Suspend Button */}
+                          {(currentUserRole === "ADMIN" ||
+                            currentUserRole === "CREATOR") &&
+                            item.role !== "CREATOR" &&
+                            onSuspend && (
+                              <button
+                                className="px-2 py-1 bg-yellow-500 rounded"
+                                onClick={() => onSuspend(item.id)}
+                              >
+                                Suspend
+                              </button>
+                            )}
+
+                          {/* Delete Button */}
+                          {(currentUserRole === "ADMIN" ||
+                            currentUserRole === "CREATOR") &&
+                          item.role !== "CREATOR" ? (
+                            <button
+                              className="px-2 py-1 bg-red-600 rounded text-white"
+                              onClick={() => onDelete(item.id)}
+                            >
+                              <FiTrash2 />
+                            </button>
+                          ) : (
+                            <span className="text-gray-500">—</span>
+                          )}
+
+                          {/* Promote / Demote Button (only visible to CREATOR) */}
+                          {currentUserRole === "CREATOR" && (
+                           <>
+  {item.role !== "CREATOR" && (
+    <>
+      {item.role === "ADMIN" ? (
+        <button
+          className="px-2 py-1 bg-red-500 rounded text-white"
+          onClick={() => onDemote(item.id)}
+          title="Demote User"
+        >
+          <FaLevelDownAlt />
+        </button>
+      ) : (
+        <button
+          className="px-2 py-1 bg-green-500 rounded text-white"
+          onClick={() => onPromote(item.id)}
+          title="Promote User"
+        >
+          <FaLevelUpAlt />
+        </button>
+      )}
+    </>
+  )}
+</>
+
+                          )}
+                        </td>
+                      </>
+                    )}
+                    {type === "blogs" && (
+                      <>
+                        <td className="px-3 py-2">{item.title}</td>
+                        <td>{item.author?.username || "-"}</td>
+                        <td>{item.Category?.name || "-"}</td>
+                        <td>{item.likeCount ?? 0}</td>
+                        <td>{item.commentCount ?? 0}</td>
+                        <td>
+                          {currentUserRole === "ADMIN" || "CREATOR" ? (
+                            <button
+                              className="px-2 py-1 bg-red-600 rounded"
+                              onClick={() => onDelete(item.id)}
+                            >
+                              <FiTrash2 />
+                            </button>
+                          ) : (
+                            <span className="text-gray-500">—</span>
+                          )}
+                        </td>
+                      </>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -606,8 +820,16 @@ function ManagementTab({ type, items, search, setSearch, page, setPage, totalPag
 
           {/* Pagination */}
           <div className="flex gap-2 mt-4 flex-wrap">
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
-              <button key={p} onClick={() => setPage(p)} className={`px-3 py-1 rounded ${p === page ? "bg-blue-500" : "bg-gray-700"}`}>{p}</button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+              <button
+                key={p}
+                onClick={() => setPage(p)}
+                className={`px-3 py-1 rounded ${
+                  p === page ? "bg-blue-500" : "bg-gray-700"
+                }`}
+              >
+                {p}
+              </button>
             ))}
           </div>
         </>
