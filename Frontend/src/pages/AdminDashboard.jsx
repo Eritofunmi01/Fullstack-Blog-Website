@@ -670,6 +670,7 @@ function StatCard({ label, value }) {
   );
 }
 
+
 function ManagementTab({
   type,
   items,
