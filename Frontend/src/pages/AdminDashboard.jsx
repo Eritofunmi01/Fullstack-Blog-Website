@@ -16,6 +16,8 @@ export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState(TABS[0]);
   const [error, setError] = useState(null);
 
+  const token = localStorage.getItem("token");
+
   // Dashboard
   const [range, setRange] = useState(7);
   const [stats, setStats] = useState(null);
@@ -60,7 +62,7 @@ export default function AdminDashboard() {
     try {
       setActionLoading(true);
       const res = await axios.put(
-        `${API_BASE}/make-admin/${id}`,
+        `https://blug-be-api.onrender.com/make-admin/${id}`,
         {},
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -80,7 +82,7 @@ export default function AdminDashboard() {
     try {
       setActionLoading(true);
       const res = await axios.post(
-        `${API_BASE}/fix-admin-roles`,
+        `https://blug-be-api.onrender.com/fix-admin-roles`,
         { id },
         { headers: { Authorization: `Bearer ${token}` } }
       );
