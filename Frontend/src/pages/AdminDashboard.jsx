@@ -529,7 +529,7 @@ export default function AdminDashboard() {
             totalPages={totalBlogPages}
             loading={blogLoading}
             onDelete={handleDeleteBlog}
-            onEdiit={(id) => navigate(`/edit-blog/${id}`)}
+            onEdit={(id) => navigate(`/edit-blog/${id}`)}
             currentUserRole={currentUserRole}
           />
         )}
@@ -683,7 +683,7 @@ function ManagementTab({
   totalPages,
   loading,
   onDelete,
-  onEdiit,
+  onEdit,
   onSuspend,
   onPromote,
   onDemote,
@@ -815,7 +815,7 @@ function ManagementTab({
                           {(currentUserRole === "ADMIN" ||
                             currentUserRole === "CREATOR") && (
                             <button
-                              onClick={(e) => onEdiit(item.id)}
+                              onClick={(e) => onEdit(item.id)}
                               className="text-blue-500 hover:text-blue-700"
                             >
                               <FaEdit size={20} />
