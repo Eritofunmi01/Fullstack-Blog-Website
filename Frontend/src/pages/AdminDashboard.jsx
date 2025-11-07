@@ -2,8 +2,8 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { FiTrash2 } from "react-icons/fi";
-import { FaLevelUpAlt, FaLevelDownAlt } from "react-icons/fa";
-import { useNavigate } from "react-router";
+import { FaLevelUpAlt, FaLevelDownAlt, FaEdit } from "react-icons/fa";
+import { useNavigate, Link } from "react-router";
 
 const TABS = ["Dashboard", "User Management", "Blog Management"];
 const USERS_PER_PAGE = 7;
@@ -385,7 +385,7 @@ export default function AdminDashboard() {
               totalPages={totalUserPages}
               loading={userLoading}
               onDelete={handleDeleteUser}
-              onSuspend={(id) => navigate(`/suspend/${id}`)}
+              onSuspend={(id) => navigate(`/suspend/${id}`)} 
               onPromote={handlePromote}
               onDemote={handleDemote}
               currentUserRole={currentUserRole}
@@ -529,6 +529,7 @@ export default function AdminDashboard() {
             totalPages={totalBlogPages}
             loading={blogLoading}
             onDelete={handleDeleteBlog}
+            onEdiit={(id) => navigate(`/edit-blog/${id}`)} 
             currentUserRole={currentUserRole}
           />
         )}
@@ -683,6 +684,7 @@ function ManagementTab({
   totalPages,
   loading,
   onDelete,
+  onEdiit,
   onSuspend,
   onPromote,
   onDemote,
@@ -801,15 +803,26 @@ function ManagementTab({
                         <td>{item.Category?.name || "-"}</td>
                         <td>{item.likeCount ?? 0}</td>
                         <td>{item.commentCount ?? 0}</td>
-                        <td>
+                        <td className="flex">
                           {(currentUserRole === "ADMIN" ||
                             currentUserRole === "CREATOR") && (
                             <button
-                              className="px-2 py-1 bg-red-600 rounded text-white"
+                              className="px-2 ml-2 py-1 rounded text-red-600"
                               onClick={() => onDelete(item.id)}
                             >
-                              <FiTrash2 />
+                              <FiTrash2 size={20} />
                             </button>
+                            
+                          )}
+                          {(currentUserRole === "ADMIN" ||
+                            currentUserRole === "CREATOR") && (
+                            <button
+                              onClick={(e) => onEdiit(item.id)}
+                              className="text-blue-500 hover:text-blue-700"
+                            >
+                              <FaEdit size={20}/>
+                            </button>
+                            
                           )}
                         </td>
                       </>
