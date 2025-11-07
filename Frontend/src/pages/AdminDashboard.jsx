@@ -385,7 +385,7 @@ export default function AdminDashboard() {
               totalPages={totalUserPages}
               loading={userLoading}
               onDelete={handleDeleteUser}
-              onSuspend={(id) => navigate(`/suspend/${id}`)} 
+              onSuspend={(id) => navigate(`/suspend/${id}`)}
               onPromote={handlePromote}
               onDemote={handleDemote}
               currentUserRole={currentUserRole}
@@ -529,7 +529,7 @@ export default function AdminDashboard() {
             totalPages={totalBlogPages}
             loading={blogLoading}
             onDelete={handleDeleteBlog}
-            onEdiit={(id) => navigate(`/edit-blog/${id}`)} 
+            onEdiit={(id) => navigate(`/edit-blog/${id}`)}
             currentUserRole={currentUserRole}
           />
         )}
@@ -673,7 +673,6 @@ function StatCard({ label, value }) {
   );
 }
 
-
 function ManagementTab({
   type,
   items,
@@ -812,7 +811,6 @@ function ManagementTab({
                             >
                               <FiTrash2 size={20} />
                             </button>
-                            
                           )}
                           {(currentUserRole === "ADMIN" ||
                             currentUserRole === "CREATOR") && (
@@ -820,9 +818,8 @@ function ManagementTab({
                               onClick={(e) => onEdiit(item.id)}
                               className="text-blue-500 hover:text-blue-700"
                             >
-                              <FaEdit size={20}/>
+                              <FaEdit size={20} />
                             </button>
-                            
                           )}
                         </td>
                       </>
@@ -858,4 +855,3 @@ function ManagementTab({
     </div>
   );
 }
-
