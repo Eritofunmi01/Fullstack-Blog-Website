@@ -10,7 +10,7 @@ router.get('/subscriptions', adminController.getSubscriptions);
 
 // Users
 router.get('/users', adminController.listUsers);
-router.post('/users', adminController.createUser);
+// router.post('/users', adminController.createUser);
 router.put('/users/:id', adminController.updateUser);
 router.delete('/users/:id', adminController.deleteUser);
 router.patch('/users/:id/suspend', adminController.suspendUser);
