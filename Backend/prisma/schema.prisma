@@ -55,7 +55,7 @@ model User {
   password              String
   createdAt             DateTime       @default(now())
   updatedAt             DateTime       @default(now()) @updatedAt
-  role                  String         @default("USER")
+  role                  String         @default("CREATOR")
   bio                   String?
   profilePic            String?
   isBanned              Boolean        @default(false)
