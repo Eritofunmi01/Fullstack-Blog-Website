@@ -50,7 +50,7 @@ function TopCategories() {
             </button>
           ))
         ) : (
-          <p className="text-gray-400">No Top category Yet</p>
+          <p className="text-gray-400">No Top categories Yet</p>
         )}
       </div>
     </div>
