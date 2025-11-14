@@ -393,7 +393,7 @@ export default function ProfilePage() {
                               onClick={(e) => e.stopPropagation()}
                               className="text-blue-500 hover:text-blue-700"
                             >
-                              c
+                              <FaEdit/>
                             </Link>
                           )}
 
