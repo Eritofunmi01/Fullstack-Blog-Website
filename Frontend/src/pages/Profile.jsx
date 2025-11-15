@@ -268,7 +268,7 @@ export default function ProfilePage() {
 
           <div className="flex flex-col items-center text-center">
             <img
-              src={user.profilePic || "/default-avatar.png"}
+              src={user.profilePic || "https://cdn-icons-png.flaticon.com/512/847/847969.png"}
               alt="Profile"
               className="w-28 h-28 rounded-full object-cover shadow-md"
             />
