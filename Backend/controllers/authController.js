@@ -26,15 +26,17 @@ const isValidPassword = (password) =>
 // -------------------- REGISTER --------------------
 export const signup = async (req, res) => {
   try {
-    let { username, email, password } = req.body;
+    let { username, email, password, role } = req.body;
 
     if (!username || !email || !password) {
       return res.status(400).json({ message: "All fields are required" });
     }
 
+    // Normalize email
     email = email.toLowerCase();
     if (!isValidEmail(email))
       return res.status(400).json({ message: "Invalid email format" });
+
     if (!isValidPassword(password)) {
       return res.status(400).json({
         message:
@@ -42,14 +44,26 @@ export const signup = async (req, res) => {
       });
     }
 
+    // Check if email already exists
     const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser)
       return res.status(400).json({ message: "Email already exists" });
 
+    // Hash password
     const hashedPassword = await bcrypt.hash(password, 12);
 
+    // Validate role input
+    const allowedRoles = ["USER", "ADMIN"];
+    const finalRole = allowedRoles.includes(role) ? role : "USER";
+
+    // Create new user
     const newUser = await prisma.user.create({
-      data: { username, email, password: hashedPassword, role:"USER"},
+      data: {
+        username,
+        email,
+        password: hashedPassword,
+        role: finalRole,
+      },
       select: {
         id: true,
         username: true,
@@ -59,18 +73,22 @@ export const signup = async (req, res) => {
       },
     });
 
+    // Generate token
     const token = jwt.sign({ id: newUser.id, role: newUser.role }, JWT_SECRET, {
       expiresIn: "1d",
     });
 
-    res
-      .status(201)
-      .json({ message: "User registered successfully", user: newUser, token });
+    res.status(201).json({
+      message: "User registered successfully",
+      user: newUser,
+      token,
+    });
   } catch (error) {
     console.error("Register Error:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };
+
 
 // -------------------- LOGIN --------------------
 export const login = async (req, res) => {
